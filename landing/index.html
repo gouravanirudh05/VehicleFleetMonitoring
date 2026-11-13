@@ -531,17 +531,35 @@ footer a{color:var(--fog)}
   function rbox(w,h,l,r,x,y,z,col){  // box with rounded vertical edges seen from the side
     return profile(function(s){ s.moveTo(-l/2+r,0); s.lineTo(l/2-r,0); s.quadraticCurveTo(l/2,0,l/2,r); s.lineTo(l/2,h-r); s.quadraticCurveTo(l/2,h,l/2-r,h); s.lineTo(-l/2+r,h); s.quadraticCurveTo(-l/2,h,-l/2,h-r); s.lineTo(-l/2,r); s.quadraticCurveTo(-l/2,0,-l/2+r,0); }, w, Math.min(.1, r*.5), 0, col).translate(x,y,z);
   }
-  function wheel(r, w, x, z, spokes){
-    var out = x > 0 ? 1 : -1, parts = [];
-    var t = new THREE.CylinderGeometry(r, r, w, 22); t.rotateZ(Math.PI/2); t.translate(x, r, z); parts.push(tint(t, TYRE));
-    var rim = new THREE.CylinderGeometry(r*.7, r*.7, .04, 22); rim.rotateZ(Math.PI/2); rim.translate(x + out*(w/2+.005), r, z); parts.push(tint(rim, HUB));
-    for (var k=0;k<spokes;k++){
-      var sp = new THREE.BoxGeometry(.035, r*1.32, .07); sp.rotateX(k/spokes*Math.PI); sp.translate(x + out*(w/2+.03), r, z); parts.push(tint(sp, RIM));
+  var PAINT = [1,1,1], STEEL = [.5,.52,.56], MIRROR = [.08,.085,.1];
+  // Wheels: tyre, a rim face on the outer side and a hub. Cars get five-slot alloys; trucks and buses get steel wheels.
+  function wheel(r, w, x, z, style){
+    var out = x > 0 ? 1 : (x < 0 ? -1 : 1), parts = [], face = x + out*(w/2);
+    var t = new THREE.CylinderGeometry(r, r, w, 24); t.rotateZ(Math.PI/2); t.translate(x, r, z); parts.push(tint(t, TYRE));
+    if (style === 'steel'){
+      var d = new THREE.CylinderGeometry(r*.62, r*.62, .03, 20); d.rotateZ(Math.PI/2); d.translate(face + out*.01, r, z); parts.push(tint(d, STEEL));
+      var b = new THREE.CylinderGeometry(r*.26, r*.3, .08, 12); b.rotateZ(Math.PI/2); b.translate(face + out*.04, r, z); parts.push(tint(b, [.3,.31,.34]));
+    } else {
+      var rim = new THREE.CylinderGeometry(r*.7, r*.7, .03, 24); rim.rotateZ(Math.PI/2); rim.translate(face + out*.01, r, z); parts.push(tint(rim, RIM));
+      for (var k=0;k<5;k++){
+        var a = k/5*Math.PI*2 + Math.PI/5, sl = new THREE.BoxGeometry(.02, r*.3, r*.2);
+        sl.translate(0, r*.4, 0); sl.rotateX(a); sl.translate(face + out*.03, r, z); parts.push(tint(sl, HUB));
+      }
+      var hub = new THREE.CylinderGeometry(r*.13, r*.13, .05, 12); hub.rotateZ(Math.PI/2); hub.translate(face + out*.035, r, z); parts.push(tint(hub, HUB));
     }
-    var hub = new THREE.CylinderGeometry(r*.16, r*.16, .06, 12); hub.rotateZ(Math.PI/2); hub.translate(x + out*(w/2+.05), r, z); parts.push(tint(hub, RIM));
     return parts;
   }
-  function axle(r, w, half, zs, spokes){ var a=[]; zs.forEach(function(z){ a = a.concat(wheel(r,w,half,z,spokes), wheel(r,w,-half,z,spokes)); }); return a; }
+  function axle(r, w, half, zs, style){ var a=[]; zs.forEach(function(z){ a = a.concat(wheel(r,w,half,z,style), wheel(r,w,-half,z,style)); }); return a; }
+  // A flat pane (glass, panel, lamp) between two points of the side profile (z, y), spanning `w` across the car.
+  function pane(z1, y1, z2, y2, w, col, th){
+    var dz = z2-z1, dy = y2-y1, len = Math.sqrt(dz*dz+dy*dy), g = new THREE.BoxGeometry(w, th || .03, len);
+    g.rotateX(-Math.atan2(dy, dz)); g.translate(0, (y1+y2)/2, (z1+z2)/2); return tint(g, col);
+  }
+  // Side windows: a profile extruded a little wider than the body so it sits on both flanks.
+  function sideGlass(pts, w){ return profile(function(s){ s.moveTo(pts[0][0], pts[0][1]); for (var i=1;i<pts.length;i++) s.lineTo(pts[i][0], pts[i][1]); s.lineTo(pts[0][0], pts[0][1]); }, w, .04, 0, GLASS); }
+  // Pillars between side windows, in body colour, standing just proud of the glass.
+  function pillar(z, y1, y2, w, lean){ var g = new THREE.BoxGeometry(w, y2-y1, .1); if (lean) g.rotateX(lean); g.translate(0, (y1+y2)/2, z); return tint(g, PAINT); }
+  function mirrors(z, y, half){ return [box(.26,.12,.14, half+.12, y, z, MIRROR), box(.26,.12,.14, -half-.12, y, z, MIRROR)]; }
   function merge(parts){
     var count = 0; parts.forEach(function(p){ count += p.attributes.position.count; });
     var pos = new Float32Array(count*3), nor = new Float32Array(count*3), col = new Float32Array(count*3), o = 0;
@@ -564,65 +582,95 @@ footer a{color:var(--fog)}
       s.quadraticCurveTo(-2.46,.3,-2.46,.58); s.lineTo(-2.44,.8); s.quadraticCurveTo(-2.42,.92,-2.15,.95);
       s.quadraticCurveTo(-1.3,1.33,-.5,1.39); s.quadraticCurveTo(.15,1.41,.7,.97);
       s.quadraticCurveTo(1.7,.83,2.36,.66); s.quadraticCurveTo(2.52,.6,2.5,.44); s.quadraticCurveTo(2.46,.28,2.3,.28);
-    }, 1.92, .2)]),
+    }, 1.92, .2), pillar(-.62, .96, 1.36, 1.97, -.12)]),
     detail: merge([
       profile(function(s){ s.moveTo(-1.95,.94); s.quadraticCurveTo(-1.2,1.3,-.5,1.345); s.quadraticCurveTo(.05,1.365,.62,.96); s.lineTo(-1.95,.94); }, 1.96, .14, 0, GLASS),
-      profile(function(s){ s.moveTo(-2.06,.96); s.quadraticCurveTo(-1.3,1.37,-.5,1.43); s.quadraticCurveTo(.15,1.455,.76,.98); s.lineTo(-2.06,.96); }, 1.6, .1, 0, GLASS),
+      profile(function(s){ s.moveTo(-2.12,1.0); s.quadraticCurveTo(-1.3,1.5,-.5,1.575); s.quadraticCurveTo(.18,1.6,.9,1.08); s.lineTo(-2.12,1.0); }, 1.56, .08, 0, GLASS),
       box(1.7,.12,3.0, 0,.3,0, TRIM),
       box(1.2,.14,.08, 0,.38,2.6, TRIM),
-      box(1.3,.1,.08, 0,.36,-2.56, TRIM)
-    ].concat(axle(.37,.25,.83,[1.46,-1.42],10))),
+      box(1.3,.1,.08, 0,.36,-2.56, TRIM),
+      box(.03,.03,.22, .99,.8,-.2, TRIM), box(.03,.03,.22, -.99,.8,-.2, TRIM), box(.03,.03,.22, .99,.8,-1.3, TRIM), box(.03,.03,.22, -.99,.8,-1.3, TRIM)
+    ].concat(mirrors(.42, .98, .9), axle(.37,.25,.83,[1.46,-1.42],'alloy'))),
     lamps: merge([box(1.3,.035,.06, 0,.6,2.62, HEAD), box(.05,.035,.34, .74,.62,2.44, HEAD), box(.05,.035,.34, -.74,.62,2.44, HEAD), box(1.56,.045,.06, 0,.84,-2.6, TAIL)]) };
 
+  // Mid-size SUV: upright windscreen, three side windows, roof rails, rear hatch glass.
   MODELS.suv = { speed:[8,12], paint: merge([profile(function(s){
-      underside(s, 2.3, -2.3, [1.5,-1.45], .5, .38);
-      s.quadraticCurveTo(-2.46,.4,-2.46,.75); s.lineTo(-2.42,1.25); s.quadraticCurveTo(-2.36,1.66,-2.0,1.7);
-      s.lineTo(-.2,1.76); s.quadraticCurveTo(.3,1.76,.9,1.22); s.quadraticCurveTo(1.8,1.12,2.36,1.0);
-      s.quadraticCurveTo(2.5,.92,2.48,.6); s.quadraticCurveTo(2.46,.38,2.3,.38);
-    }, 2.0, .16)]),
+      underside(s, 2.32, -2.3, [1.5,-1.45], .5, .36);
+      s.quadraticCurveTo(-2.48,.38,-2.48,.7); s.lineTo(-2.44,1.18); s.lineTo(-2.3,1.64); s.quadraticCurveTo(-2.24,1.75,-2.05,1.76);
+      s.lineTo(-.1,1.78); s.quadraticCurveTo(.05,1.78,.12,1.7); s.lineTo(.86,1.2);
+      s.quadraticCurveTo(1.9,1.1,2.38,.98); s.quadraticCurveTo(2.52,.92,2.5,.6); s.quadraticCurveTo(2.48,.36,2.32,.36);
+    }, 2.0, .14),
+      pillar(.28, 1.22, 1.7, 2.06, -.55), pillar(-.72, 1.2, 1.72, 2.06), pillar(-1.72, 1.2, 1.72, 2.06), pillar(-2.24, 1.2, 1.66, 2.06, .3)]),
     detail: merge([
-      profile(function(s){ s.moveTo(-2.25,1.24); s.lineTo(-2.2,1.62); s.lineTo(-.2,1.69); s.quadraticCurveTo(.2,1.69,.82,1.24); s.lineTo(-2.25,1.24); }, 2.04, .13, 0, GLASS),
-      box(1.8,.22,3.2, 0,.4,0, TRIM),
-      box(.08,.06,2.6, .7,1.86,-.6, TRIM), box(.08,.06,2.6, -.7,1.86,-.6, TRIM)
-    ].concat(axle(.46,.3,.88,[1.5,-1.45],6))),
-    lamps: merge([box(1.6,.06,.05, 0,1.0,2.4, HEAD), box(.1,.34,.05, .86,1.2,-2.45, TAIL), box(.1,.34,.05, -.86,1.2,-2.45, TAIL), box(1.4,.04,.05, 0,1.3,-2.45, TAIL)]) };
+      sideGlass([[-2.32,1.2],[-2.2,1.64],[-2.05,1.7],[-.1,1.72],[.1,1.66],[.8,1.2]], 2.03),
+      pane(.9,1.2,.14,1.73, 1.66, GLASS),
+      pane(-2.46,1.24,-2.32,1.68, 1.56, GLASS),
+      box(1.84,.22,3.2, 0,.4,0, TRIM),
+      box(1.1,.32,.08, 0,.72,2.53, [.1,.11,.13]),
+      box(1.9,.18,.12, 0,.42,2.48, TRIM), box(1.9,.18,.12, 0,.42,-2.5, TRIM),
+      box(.06,.06,2.2, .74,1.83,-1.0, TRIM), box(.06,.06,2.2, -.74,1.83,-1.0, TRIM),
+      box(.03,.03,.24, 1.04,1.08,-.3, TRIM), box(.03,.03,.24, -1.04,1.08,-.3, TRIM)
+    ].concat(mirrors(.62, 1.24, .96), axle(.46,.3,.88,[1.5,-1.45],'alloy'))),
+    lamps: merge([box(.5,.07,.06, .62,1.0,2.48, HEAD), box(.5,.07,.06, -.62,1.0,2.48, HEAD), box(.12,.36,.06, .88,1.32,-2.47, TAIL), box(.12,.36,.06, -.88,1.32,-2.47, TAIL)]) };
 
-  // Box truck: rounded cab and a cargo body
+  // Box truck: cab-over with a big windscreen, door windows, grille and mirrors; ribbed cargo body with rear doors.
   MODELS.truck = { speed:[6,8.5], paint: merge([profile(function(s){
-      underside(s, 4.55, 2.55, [3.6], .52, .45);
-      s.lineTo(2.55,2.85); s.lineTo(3.7,2.9); s.quadraticCurveTo(4.3,2.9,4.45,2.2); s.lineTo(4.62,1.3); s.quadraticCurveTo(4.66,.45,4.55,.45);
-    }, 2.35, .14)]),
+      underside(s, 4.6, 2.5, [3.65], .52, .5);
+      s.lineTo(2.5,3.0); s.lineTo(3.9,3.02); s.quadraticCurveTo(4.42,3.0,4.5,2.6); s.lineTo(4.62,1.4); s.lineTo(4.64,.7); s.quadraticCurveTo(4.64,.5,4.6,.5);
+    }, 2.36, .12), pillar(3.85, 1.72, 2.75, 2.42)]),
     detail: merge([
-      rbox(2.5,2.9,6.6,.18, 0,.75,-.9, [.8,.82,.85]),
-      profile(function(s){ s.moveTo(3.5,1.95); s.lineTo(3.6,2.7); s.quadraticCurveTo(4.2,2.7,4.3,2.1); s.lineTo(4.4,1.95); s.lineTo(3.5,1.95); }, 2.4, .1, 0, GLASS),
-      box(2.0,.3,8.6, 0,.62,-.2, TRIM),
-      box(2.4,.4,.2, 0,.6,4.66, TRIM)
-    ].concat(axle(.52,.38,1.02,[3.6,-2.2,-3.35],6))),
-    lamps: merge([box(.36,.12,.05, .82,1.15,4.66, HEAD), box(.36,.12,.05, -.82,1.15,4.66, HEAD), box(.12,.3,.05, 1.05,1.0,-4.24, TAIL), box(.12,.3,.05, -1.05,1.0,-4.24, TAIL), box(2.2,.05,.05, 0,3.62,-4.24, AMBER)]) };
+      rbox(2.5,2.95,6.4,.12, 0,.8,-.85, [.84,.86,.88]),
+      box(2.54,.05,6.3, 0,1.6,-.85, [.6,.62,.66]), box(2.54,.05,6.3, 0,2.4,-.85, [.6,.62,.66]),
+      box(2.4,2.7,.04, 0,2.18,-4.07, [.7,.72,.75]), box(.04,2.6,.06, 0,2.18,-4.1, [.35,.36,.4]),
+      sideGlass([[3.95,1.75],[3.95,2.72],[4.38,2.72],[4.5,2.3],[4.55,1.75]], 2.4),
+      sideGlass([[2.62,1.75],[2.62,2.72],[3.75,2.72],[3.75,1.75]], 2.4),
+      pane(4.64,1.72,4.5,2.78, 2.0, GLASS),
+      box(1.6,.6,.06, 0,1.15,4.66, [.12,.13,.15]),
+      box(2.4,.32,.2, 0,.62,4.66, TRIM),
+      box(2.0,.3,8.4, 0,.66,-.3, TRIM),
+      box(.06,.5,.06, 1.32,2.25,4.3, MIRROR), box(.06,.5,.06, -1.32,2.25,4.3, MIRROR),
+      box(.6,.5,.9, .7,.75,2.0, STEEL)
+    ].concat(axle(.52,.4,1.0,[3.65,-2.4,-3.45],'steel'))),
+    lamps: merge([box(.36,.14,.05, .85,.98,4.67, HEAD), box(.36,.14,.05, -.85,.98,4.67, HEAD), box(.12,.3,.05, 1.08,1.0,-4.1, TAIL), box(.12,.3,.05, -1.08,1.0,-4.1, TAIL), box(2.0,.05,.05, 0,3.72,-4.1, AMBER), box(1.0,.05,.05, 0,3.06,4.5, AMBER)]) };
 
-  MODELS.bus = { speed:[6,8], paint: merge([rbox(2.5,2.85,11.2,.45, 0,.45,0)]),
-    detail: merge([
-      box(2.56,1.0,9.2, 0,2.05,-.6, GLASS),
-      box(2.3,1.35,.06, 0,1.95,5.62, GLASS),
-      box(2.0,.22,7.0, 0,3.4,-.5, TRIM),
-      box(2.4,.3,11.0, 0,.5,0, TRIM)
-    ].concat(axle(.52,.34,1.05,[3.9,-3.6],6))),
-    lamps: merge([box(.4,.1,.05, .85,.95,5.63, HEAD), box(.4,.1,.05, -.85,.95,5.63, HEAD), box(2.0,.16,.05, 0,3.0,5.63, AMBER), box(.14,.4,.05, 1.0,1.1,-5.63, TAIL), box(.14,.4,.05, -1.0,1.1,-5.63, TAIL)]) };
+  // City bus: window bays split by pillars, front door, large windscreen and a lit destination sign.
+  MODELS.bus = (function(){
+    var paint = [rbox(2.5,2.9,11.2,.4, 0,.42,0, PAINT)], glassParts = [];
+    glassParts.push(sideGlass([[-5.3,1.55],[-5.3,2.75],[3.7,2.75],[3.7,1.55]], 2.54));
+    for (var z=-5.0; z<3.7; z+=1.45) paint.push(pillar(z, 1.5, 2.8, 2.56));
+    glassParts.push(box(2.56,2.2,1.0, 0,1.65,4.35, GLASS));            // front door glass on both sides
+    glassParts.push(box(2.3,1.55,.06, 0,2.0,5.62, GLASS));             // windscreen
+    glassParts.push(box(2.2,.9,.06, 0,2.3,-5.62, GLASS));              // rear window
+    return { speed:[6,8], paint: merge(paint),
+      detail: merge(glassParts.concat([
+        box(2.0,.22,7.0, 0,3.4,-.5, TRIM),
+        box(2.52,.26,11.0, 0,.56,0, TRIM),
+        box(2.4,.3,.12, 0,.58,5.6, TRIM), box(2.4,.3,.12, 0,.58,-5.6, TRIM),
+        box(.06,.5,.06, 1.34,2.5,5.4, MIRROR), box(.06,.5,.06, -1.34,2.5,5.4, MIRROR)
+      ], axle(.52,.34,1.04,[3.9,-3.6],'steel'))),
+      lamps: merge([box(.4,.12,.05, .85,.95,5.64, HEAD), box(.4,.12,.05, -.85,.95,5.64, HEAD), box(1.6,.2,.05, 0,3.0,5.64, AMBER), box(.14,.4,.05, 1.0,1.1,-5.64, TAIL), box(.14,.4,.05, -1.0,1.1,-5.64, TAIL)]) };
+  })();
 
-  // Motorbike with rider
+  // Motorbike with rider: tank and fairing in paint, forks, seat, exhaust, helmeted rider leaning onto the bars.
   MODELS.bike = { speed:[10,14], paint: merge([
-      profile(function(s){ s.moveTo(-.55,.62); s.lineTo(.2,.62); s.quadraticCurveTo(.62,.66,.72,1.05); s.quadraticCurveTo(.5,1.18,.2,1.1); s.lineTo(-.15,1.0); s.quadraticCurveTo(-.6,1.0,-.7,.86); s.lineTo(-.55,.62); }, .34, .08)
+      profile(function(s){ s.moveTo(-.5,.66); s.lineTo(.25,.66); s.quadraticCurveTo(.62,.7,.74,1.02); s.quadraticCurveTo(.66,1.2,.38,1.16); s.quadraticCurveTo(.1,1.12,-.1,1.04); s.lineTo(-.5,.98); s.lineTo(-.5,.66); }, .36, .08),
+      pane(.72,1.06,.6,1.28, .3, PAINT, .02)
     ]),
-    detail: merge([
-      wheel(.33,.12,.0,.72,5)[0], wheel(.33,.12,0,.72,5)[1], wheel(.33,.12,0,-.72,5)[0], wheel(.33,.12,0,-.72,5)[1],
-      box(.3,.1,.62, 0,1.04,-.32, TRIM),
-      box(.06,.5,.06, 0,.8,.62, RIM),
-      box(.6,.04,.04, 0,1.14,.56, TRIM),
-      rbox(.4,.66,.34,.12, 0,1.1,-.15, [.16,.18,.22]),
-      box(.14,.42,.12, .2,.8,0, [.12,.13,.16]), box(.14,.42,.12, -.2,.8,0, [.12,.13,.16]),
-      rbox(.3,.3,.32,.14, 0,1.76,-.05, [.86,.86,.84])
-    ]),
-    lamps: merge([box(.14,.1,.04, 0,1.0,.74, HEAD), box(.14,.05,.04, 0,.95,-.74, TAIL)]) };
+    detail: merge([].concat(
+      wheel(.33,.12,0,.74,'alloy'), wheel(.33,.12,0,-.72,'alloy'),
+      [ box(.05,.6,.05, .07,.72,.66, RIM), box(.05,.6,.05, -.07,.72,.66, RIM),
+        box(.04,.04,.8, .1,.34,-.36, STEEL), box(.04,.04,.8, -.1,.34,-.36, STEEL),
+        box(.1,.1,.7, .2,.52,-.4, STEEL),
+        box(.3,.1,.6, 0,1.02,-.4, TRIM), box(.3,.14,.3, 0,1.0,-.72, TRIM),
+        box(.66,.04,.04, 0,1.2,.5, TRIM),
+        pane(.62,1.3,.58,1.36, .28, GLASS, .02),
+        // rider: legs, torso leaning forward, arms to the bars, helmet with visor
+        box(.13,.42,.13, .19,.86,-.12, [.12,.13,.16]), box(.13,.42,.13, -.19,.86,-.12, [.12,.13,.16]),
+        pane(-.35,1.12,.12,1.62, .4, [.16,.18,.22], .3),
+        pane(.0,1.52,.45,1.24, .09, [.16,.18,.22], .09),
+        tint(new THREE.SphereGeometry(.17, 14, 10).translate(0,1.84,.18), [.86,.86,.84]), box(.22,.08,.06, 0,1.85,.33, GLASS)
+      ])),
+    lamps: merge([box(.14,.1,.04, 0,1.0,.76, HEAD), box(.14,.05,.04, 0,1.0,-.88, TAIL)]) };
 
   var PAINTS = [0xd9dde2, 0xc4c9cf, 0xe8e9ea, 0x9aa3ad, 0x2a2e35, 0x1d3f66, 0x8c2420, 0x55687a, 0xb8c96a];
   var BUS_PAINTS = [0x2f6db3, 0xc23b2e, 0xd9a330], TRUCK_PAINTS = [0xe6e6e2, 0x2c4a7a, 0x9b2a24, 0x3f5d4a];

@@ -23,7 +23,7 @@ Nothing needs to be built. The page loads Three.js r128 from cdnjs and its fonts
 ## How the scene works
 
 - The roads are Catmull-Rom curves. Vehicles move along them by arc length, and each vehicle has a plate, a sequence number and a speed that feed the live event list.
-- The vehicles are built at runtime from extruded side profiles with rounded bevels. There are five types: an electric fastback saloon, an SUV, a box truck, a bus and a motorbike with a rider. Each type is drawn as three `InstancedMesh` layers (paint, details and lamps) that share one transform, so the whole fleet costs a handful of draw calls.
+- The vehicles are built at runtime from extruded side profiles with rounded bevels. There are five types: an electric fastback saloon with a glass roof, an SUV with three side windows and roof rails, a cab-over box truck with a ribbed cargo body, a city bus with window bays and a front door, and a motorbike with a helmeted rider. Glass, pillars, mirrors, alloy or steel wheels and light bars are modelled on each one. Each type is drawn as three `InstancedMesh` layers (paint, details and lamps) that share one transform, so the whole fleet costs a handful of draw calls.
 - Scroll position picks a camera shot for each chapter. Some shots are fixed and some follow a moving vehicle, and the camera eases between them.
 - `prefers-reduced-motion` slows the traffic and removes the camera easing.
 
