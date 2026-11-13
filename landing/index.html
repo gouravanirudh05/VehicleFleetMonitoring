@@ -1,0 +1,799 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fleetwake</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Fleetwake streams GPS, speed and engine telemetry from every vehicle in your fleet to every open dashboard, live.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a fixed live 3D city at night; editorial chapters scroll over it, copy alternating left and right, a chapter rail on the right edge. */
+:root{
+  color-scheme: dark;
+  --asphalt:#07090d;      /* page ground, wet road at night */
+  --asphalt-2:#0d1117;    /* raised panels */
+  --sodium:#f2a03d;       /* sodium street lamps, primary accent */
+  --signal:#5fd4c4;       /* live data packets */
+  --bone:#e8e4da;         /* headings */
+  --fog:#a7adb5;          /* body text */
+  --dim:#6b727c;          /* captions */
+  --line:rgba(232,228,218,.14);
+  --scrim:rgba(7,9,13,.72);
+  --alert:#ff5b4d;        /* semantic: anomaly */
+  --room-a:#f2a03d; --room-b:#5fd4c4; --room-c:#b59cff;
+
+  --f-display:'Big Shoulders Display','Arial Narrow','Roboto Condensed',sans-serif;
+  --f-body:'Instrument Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --f-mono:'IBM Plex Mono',ui-monospace,'SFMono-Regular',Menlo,monospace;
+
+  --gutter-l:max(16px, env(safe-area-inset-left, 0px));
+  --gutter-r:max(16px, env(safe-area-inset-right, 0px));
+  --pad:clamp(20px, 4vw, 64px);
+}
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto} }
+body{
+  background:var(--asphalt); color:var(--fog);
+  font-family:var(--f-body); font-size:16px; line-height:1.6;
+  -webkit-font-smoothing:antialiased; overflow-x:hidden;
+}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--sodium); outline-offset:3px; border-radius:2px}
+::selection{background:var(--sodium); color:var(--asphalt)}
+
+#city{position:fixed; inset:0; width:100%; height:100%; display:block; z-index:0; background:var(--asphalt)}
+.vignette{position:fixed; inset:0; z-index:1; pointer-events:none;
+  background:radial-gradient(120% 90% at 50% 45%, transparent 45%, rgba(4,5,8,.7) 100%)}
+
+/* ---------- nav ---------- */
+body::before{content:""; position:fixed; inset:0 0 auto; height:env(safe-area-inset-top, 0px); z-index:30; background:var(--asphalt)}
+.nav{
+  position:fixed; top:env(safe-area-inset-top, 0px); left:0; right:0; z-index:20;
+  display:flex; align-items:center; gap:24px;
+  padding-block:16px; padding-left:max(var(--pad), env(safe-area-inset-left, 0px)); padding-right:max(var(--pad), env(safe-area-inset-right, 0px));
+  background:rgba(7,9,13,.82); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border-bottom:1px solid var(--line);
+}
+.wordmark{display:flex; align-items:center; gap:10px; text-decoration:none;
+  font-family:var(--f-display); font-weight:800; font-size:24px; letter-spacing:.04em; text-transform:uppercase; color:var(--bone)}
+.wordmark svg{width:22px; height:22px; flex:none}
+.nav nav{margin-left:auto}
+.nav ul{display:flex; gap:22px; list-style:none; margin:0; padding:0}
+.nav ul a{font-family:var(--f-mono); font-size:12px; letter-spacing:.12em; text-transform:uppercase; text-decoration:none; color:var(--fog)}
+.nav ul a:hover{color:var(--bone)}
+.btn{display:inline-flex; align-items:center; gap:10px; min-height:44px; padding:0 20px; border-radius:2px;
+  font-family:var(--f-mono); font-size:13px; font-weight:500; letter-spacing:.08em; text-transform:uppercase; text-decoration:none; cursor:pointer;
+  border:1px solid var(--sodium); background:var(--sodium); color:var(--asphalt); transition:background .2s, color .2s}
+.btn:hover{background:transparent; color:var(--sodium)}
+.btn.ghost{background:transparent; color:var(--bone); border-color:var(--line)}
+.btn.ghost:hover{border-color:var(--bone)}
+.nav .btn{min-height:38px; padding:0 14px; font-size:12px}
+@media (max-width:860px){ .nav ul{display:none} .nav .btn{margin-left:auto} }
+
+/* ---------- chapter rail ---------- */
+.rail{position:fixed; right:max(20px, env(safe-area-inset-right, 0px)); top:50%; transform:translateY(-50%); z-index:15;
+  list-style:none; margin:0; padding:0; display:grid; gap:14px}
+.rail a{display:flex; align-items:center; justify-content:flex-end; gap:10px; text-decoration:none;
+  font-family:var(--f-mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--dim)}
+.rail a span{opacity:0; transition:opacity .3s}
+.rail a i{display:block; width:18px; height:1px; background:var(--dim); transition:width .3s, background .3s}
+.rail a:hover span,.rail a.on span{opacity:1}
+.rail a.on{color:var(--sodium)} .rail a.on i{width:36px; background:var(--sodium)}
+@media (max-width:1100px){ .rail{display:none} }
+
+/* ---------- type ---------- */
+main{position:relative; z-index:5}
+.eyebrow{font-family:var(--f-mono); font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:var(--sodium); margin:0}
+h1,h2{font-family:var(--f-display); font-weight:800; text-transform:uppercase; color:var(--bone); margin:0; line-height:.92; letter-spacing:.005em; text-wrap:balance}
+h1{font-size:clamp(52px, 8.4vw, 132px)}
+h2{font-size:clamp(40px, 5.4vw, 84px)}
+h3{font-family:var(--f-display); font-weight:600; font-size:22px; letter-spacing:.03em; text-transform:uppercase; color:var(--bone); margin:0}
+p{margin:0; max-width:60ch}
+.lede{font-size:clamp(17px, 1.35vw, 20px); color:var(--fog); line-height:1.55}
+.mono{font-family:var(--f-mono); font-variant-numeric:tabular-nums}
+.chapno{font-family:var(--f-display); font-weight:600; font-size:15px; letter-spacing:.2em; color:var(--dim)}
+
+/* ---------- sections ---------- */
+.chapter{min-height:130vh; display:flex; align-items:center;
+  padding-left:max(var(--pad), env(safe-area-inset-left, 0px)); padding-right:max(var(--pad), env(safe-area-inset-right, 0px)); padding-block:18vh}
+.chapter.right{justify-content:flex-end}
+.chapter.right .copy{margin-right:clamp(0px, 5vw, 80px)}
+.copy{position:relative; width:min(560px, 100%); display:grid; gap:22px; padding:30px 30px 32px;
+  background:var(--scrim); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border-top:1px solid var(--line)}
+.copy-head{display:flex; justify-content:space-between; align-items:baseline; gap:16px}
+
+/* hero */
+.hero{min-height:100vh; display:grid; grid-template-columns:minmax(0, 1.25fr) minmax(0, .75fr); align-items:end; gap:40px;
+  padding-left:max(var(--pad), env(safe-area-inset-left, 0px)); padding-right:max(var(--pad), env(safe-area-inset-right, 0px));
+  padding-top:calc(110px + env(safe-area-inset-top, 0px)); padding-bottom:9vh;
+  background:linear-gradient(90deg, rgba(7,9,13,.78), rgba(7,9,13,.15) 60%, rgba(7,9,13,0))}
+.hero-copy{display:grid; gap:26px; min-width:0}
+.hero h1 em{font-style:normal; color:var(--sodium)}
+.ctas{display:flex; flex-wrap:wrap; gap:12px}
+.live{min-width:0; align-self:end; background:var(--scrim); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border:1px solid var(--line)}
+.live-head{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 16px; border-bottom:1px solid var(--line);
+  font-family:var(--f-mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--dim)}
+.pulse{display:inline-flex; align-items:center; gap:8px; color:var(--signal)}
+.pulse::before{content:""; width:7px; height:7px; border-radius:50%; background:var(--signal); box-shadow:0 0 0 0 var(--signal); animation:ping 1.6s infinite}
+@keyframes ping{0%{box-shadow:0 0 0 0 rgba(95,212,196,.6)}100%{box-shadow:0 0 0 10px rgba(95,212,196,0)}}
+@media (prefers-reduced-motion: reduce){ .pulse::before{animation:none} }
+.stats{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); border-bottom:1px solid var(--line)}
+.stats div{padding:12px 16px; display:grid; gap:2px}
+.stats div + div{border-left:1px solid var(--line)}
+.stats b{font-family:var(--f-display); font-weight:800; font-size:30px; color:var(--bone); font-variant-numeric:tabular-nums; line-height:1}
+.stats small{font-family:var(--f-mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--dim)}
+.feed{list-style:none; margin:0; padding:10px 16px 14px; height:208px; overflow:hidden; display:flex; flex-direction:column; justify-content:flex-end; gap:3px;
+  font-family:var(--f-mono); font-size:12px; color:var(--fog); font-variant-numeric:tabular-nums}
+.feed li{display:grid; grid-template-columns:7.2em 4.6em 5.4em minmax(0,1fr); gap:10px; white-space:nowrap}
+.feed li span{overflow:hidden; text-overflow:ellipsis}
+.feed .id{color:var(--bone)} .feed .ok{color:var(--signal)} .feed .warn{color:var(--alert)}
+.live-foot{padding:0 16px 12px; font-family:var(--f-mono); font-size:10.5px; color:var(--dim)}
+
+/* code / spec blocks */
+pre.event{margin:0; padding:16px 18px; overflow-x:auto; background:rgba(0,0,0,.35); border:1px solid var(--line);
+  font-family:var(--f-mono); font-size:13px; line-height:1.65; color:var(--fog)}
+pre.event .k{color:var(--dim)} pre.event .s{color:var(--signal)} pre.event .n{color:var(--sodium)}
+.spec{list-style:none; margin:0; padding:0; display:grid; border-top:1px solid var(--line)}
+.spec li{display:grid; grid-template-columns:minmax(0, 11em) minmax(0, 1fr); gap:16px; padding:11px 0; border-bottom:1px solid var(--line); font-size:14.5px}
+.spec li b{font-family:var(--f-mono); font-weight:500; font-size:12.5px; color:var(--bone); letter-spacing:.02em}
+.rooms{display:flex; flex-wrap:wrap; gap:8px}
+.room{display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border:1px solid var(--line); font-family:var(--f-mono); font-size:12.5px; color:var(--bone)}
+.room i{width:8px; height:8px; border-radius:50%}
+
+/* replay timeline */
+.timeline{display:grid; gap:8px}
+.track{position:relative; height:34px; border:1px solid var(--line); background:rgba(0,0,0,.3); overflow:hidden}
+.track .hist{position:absolute; inset:0 22% 0 0; background:repeating-linear-gradient(90deg, rgba(232,228,218,.22) 0 2px, transparent 2px 7px)}
+.track .live-seg{position:absolute; inset:0 0 0 78%; background:repeating-linear-gradient(90deg, var(--signal) 0 2px, transparent 2px 7px); opacity:.85}
+.track .seam{position:absolute; top:-4px; bottom:-4px; left:78%; width:2px; background:var(--sodium)}
+.track-labels{display:flex; justify-content:space-between; font-family:var(--f-mono); font-size:11px; color:var(--dim); letter-spacing:.06em}
+
+/* alert card */
+.alert{display:grid; gap:10px; padding:16px 18px; border:1px solid rgba(255,91,77,.5); background:rgba(255,91,77,.08)}
+.alert-top{display:flex; justify-content:space-between; gap:12px; font-family:var(--f-mono); font-size:12px; letter-spacing:.1em; text-transform:uppercase}
+.sev{color:var(--alert); display:inline-flex; align-items:center; gap:8px}
+.sev::before{content:""; width:8px; height:8px; background:var(--alert); transform:rotate(45deg)}
+.alert-body{display:flex; align-items:baseline; gap:14px; flex-wrap:wrap}
+.alert-body b{font-family:var(--f-display); font-size:44px; font-weight:800; line-height:1; color:var(--bone); font-variant-numeric:tabular-nums}
+.alert-body span{font-size:14px; color:var(--fog)}
+.rules{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:0 20px; list-style:none; margin:0; padding:0}
+.rules li{padding:9px 0; border-bottom:1px solid var(--line); font-size:14px}
+.rules li b{display:block; font-family:var(--f-mono); font-weight:500; font-size:12px; color:var(--bone)}
+
+/* launch / architecture */
+.launch{position:relative; z-index:5; padding-block:16vh 10vh;
+  padding-left:max(var(--pad), env(safe-area-inset-left, 0px)); padding-right:max(var(--pad), env(safe-area-inset-right, 0px));
+  background:linear-gradient(rgba(7,9,13,0), rgba(7,9,13,.86) 18%, var(--asphalt) 60%)}
+.launch-inner{max-width:1240px; margin:0 auto; display:grid; gap:56px}
+.launch-head{display:grid; grid-template-columns:minmax(0,1fr) minmax(0, 420px); gap:40px; align-items:end}
+.pipe-wrap{overflow-x:auto; padding-bottom:4px}
+.pipe{list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(6, minmax(150px, 1fr)); min-width:920px; counter-reset:step}
+.pipe li{position:relative; padding:18px 18px 20px 0; border-top:2px solid var(--line); display:grid; gap:8px; align-content:start}
+.pipe li::before{counter-increment:step; content:counter(step, decimal-leading-zero); font-family:var(--f-mono); font-size:11px; color:var(--sodium); letter-spacing:.1em}
+.pipe li::after{content:""; position:absolute; top:-6px; left:0; width:10px; height:10px; background:var(--asphalt); border:2px solid var(--sodium); border-radius:50%}
+.pipe h3{font-size:19px}
+.pipe p{font-size:14px; color:var(--fog)}
+.pipe .tech{font-family:var(--f-mono); font-size:11.5px; color:var(--dim)}
+.targets{display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); border-top:1px solid var(--line); border-bottom:1px solid var(--line)}
+.targets div{padding:22px 20px 22px 0; display:grid; gap:6px}
+.targets div + div{padding-left:20px; border-left:1px solid var(--line)}
+.targets b{font-family:var(--f-display); font-weight:800; font-size:clamp(40px, 4.4vw, 64px); line-height:.95; color:var(--bone); font-variant-numeric:tabular-nums}
+.targets small{font-size:13.5px; color:var(--fog)}
+.targets-note{font-family:var(--f-mono); font-size:11.5px; color:var(--dim); letter-spacing:.04em}
+.final{display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:24px; padding:34px 0; border-top:1px solid var(--line)}
+.final h2{font-size:clamp(34px, 4vw, 60px)}
+footer{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:24px; padding-top:28px; border-top:1px solid var(--line); font-size:13px; color:var(--dim)}
+footer p{max-width:none}
+footer a{color:var(--fog)}
+
+@media (max-width:980px){
+  .hero{grid-template-columns:minmax(0,1fr); align-items:start; padding-bottom:12vh}
+  .launch-head{grid-template-columns:minmax(0,1fr)}
+  .targets{grid-template-columns:repeat(2, minmax(0,1fr))}
+  .targets div:nth-child(3){padding-left:0; border-left:0}
+  .targets div:nth-child(n+3){border-top:1px solid var(--line)}
+}
+@media (max-width:640px){
+  .chapter,.chapter.right{justify-content:stretch; min-height:120vh; padding-block:14vh}
+  .copy{padding:22px 18px 24px}
+  .spec li{grid-template-columns:minmax(0,1fr); gap:2px}
+  .rules{grid-template-columns:minmax(0,1fr)}
+  .feed li{grid-template-columns:6.8em 4.4em minmax(0,1fr)}
+  .feed li .geo{display:none}
+  footer{grid-template-columns:minmax(0,1fr)}
+}
+</style>
+</head>
+<body>
+<canvas id="city" aria-hidden="true"></canvas>
+<div class="vignette" aria-hidden="true"></div>
+
+<header class="nav">
+  <a class="wordmark" href="#top" aria-label="Fleetwake home">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 18 L10 6 L13 11" fill="none" stroke="#f2a03d" stroke-width="2.4"/><path d="M11 18 L16 9 L21 18" fill="none" stroke="#5fd4c4" stroke-width="2.4"/></svg>
+    Fleetwake
+  </a>
+  <nav aria-label="Sections">
+    <ul>
+      <li><a href="#ingest">Ingest</a></li>
+      <li><a href="#broadcast">Broadcast</a></li>
+      <li><a href="#replay">Replay</a></li>
+      <li><a href="#detect">Detect</a></li>
+      <li><a href="#launch">Architecture</a></li>
+    </ul>
+  </nav>
+  <!-- Point this at the dashboard route of the React app, e.g. /dashboard -->
+  <a class="btn" href="#launch">Open dashboard</a>
+</header>
+
+<ol class="rail" aria-label="Chapters">
+  <li><a href="#top" data-rail="0"><span>Live</span><i></i></a></li>
+  <li><a href="#ingest" data-rail="1"><span>Ingest</span><i></i></a></li>
+  <li><a href="#broadcast" data-rail="2"><span>Broadcast</span><i></i></a></li>
+  <li><a href="#replay" data-rail="3"><span>Replay</span><i></i></a></li>
+  <li><a href="#detect" data-rail="4"><span>Detect</span><i></i></a></li>
+  <li><a href="#launch" data-rail="5"><span>Build</span><i></i></a></li>
+</ol>
+
+<main>
+  <section class="hero shot" id="top" data-shot="0">
+    <div class="hero-copy">
+      <p class="eyebrow">Real-time fleet telemetry</p>
+      <h1>Every vehicle.<br>Every second.<br><em>One live map.</em></h1>
+      <p class="lede">Fleetwake takes in GPS, speed, fuel and engine readings from every vehicle you run, keeps each event in MongoDB, and pushes only what changed to every open dashboard over Socket.IO.</p>
+      <div class="ctas">
+        <a class="btn" href="#launch">Open the live dashboard</a>
+        <a class="btn ghost" href="#ingest">See how it works</a>
+      </div>
+    </div>
+    <aside class="live" aria-label="Simulated telemetry feed">
+      <div class="live-head"><span class="pulse">Live feed</span><span>Simulated</span></div>
+      <div class="stats">
+        <div><b id="st-veh">0</b><small>Vehicles</small></div>
+        <div><b id="st-eps">0</b><small>Events / s</small></div>
+        <div><b id="st-alerts">0</b><small>Alerts</small></div>
+      </div>
+      <ol class="feed" id="feed" aria-live="off"></ol>
+      <p class="live-foot">vehicleId · seq · speed · position (Bengaluru)</p>
+    </aside>
+  </section>
+
+  <section class="chapter shot" id="ingest" data-shot="1">
+    <div class="copy">
+      <div class="copy-head"><p class="eyebrow">Ingest</p><span class="chapno">01 / 04</span></div>
+      <h2>Every ping has a name, a number and a time.</h2>
+      <p>Each vehicle sends a small event about once a second. The ingest API checks it against a schema, limits how fast any one device can send, and drops repeats by vehicle and sequence number, so a flaky cellular link can't double-count a trip.</p>
+      <pre class="event" aria-label="Example telemetry event"><span class="k">{</span>
+  <span class="k">"vehicleId":</span> <span class="s">"KA01-AB-4471"</span>,
+  <span class="k">"seq":</span>       <span class="n">88213</span>,
+  <span class="k">"ts":</span>        <span class="s">"2026-11-13T06:41:07.412Z"</span>,
+  <span class="k">"type":</span>      <span class="s">"position"</span>,
+  <span class="k">"lat":</span> <span class="n">12.97194</span>, <span class="k">"lng":</span> <span class="n">77.59369</span>,
+  <span class="k">"speedKmh":</span>  <span class="n">42.6</span>, <span class="k">"fuelPct":</span> <span class="n">61</span>, <span class="k">"engineC":</span> <span class="n">88</span>
+<span class="k">}</span></pre>
+    </div>
+  </section>
+
+  <section class="chapter right shot" id="broadcast" data-shot="2">
+    <div class="copy">
+      <div class="copy-head"><p class="eyebrow">Broadcast</p><span class="chapno">02 / 04</span></div>
+      <h2>Each screen hears only its own fleet.</h2>
+      <p>Dashboards join Socket.IO rooms for the fleets, regions or single vehicles they care about. The server gathers changes for 250 ms and sends one compact batch per room, with only the fields that moved.</p>
+      <div class="rooms" aria-label="Example rooms">
+        <span class="room"><i style="background:var(--room-a)"></i>fleet:north-depot</span>
+        <span class="room"><i style="background:var(--room-b)"></i>fleet:airport-shuttle</span>
+        <span class="room"><i style="background:var(--room-c)"></i>vehicle:KA01-AB-4471</span>
+      </div>
+      <ul class="spec">
+        <li><b>Batching</b><span>250 ms window per room, deltas only</span></li>
+        <li><b>Client throttle</b><span>Map and charts redraw at most 4 times a second</span></li>
+        <li><b>Backpressure</b><span>Slow sockets get the latest state, not a growing queue</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="chapter shot" id="replay" data-shot="3">
+    <div class="copy">
+      <div class="copy-head"><p class="eyebrow">Replay</p><span class="chapno">03 / 04</span></div>
+      <h2>This morning's route and this second's position, on one line.</h2>
+      <p>Open a vehicle and its history loads from a MongoDB time-series collection. Live events that arrive during the load are held, then merged by sequence number, so the trail has no gaps and no duplicate points.</p>
+      <div class="timeline" aria-label="History and live data joined at one point">
+        <div class="track"><span class="hist"></span><span class="live-seg"></span><span class="seam"></span></div>
+        <div class="track-labels"><span>06:00 history</span><span>seq 88190 seam</span><span>now live</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="chapter right shot" id="detect" data-shot="4">
+    <div class="copy">
+      <div class="copy-head"><p class="eyebrow">Detect</p><span class="chapno">04 / 04</span></div>
+      <h2>Trouble shows up before the phone rings.</h2>
+      <p>Rules run on every event as it arrives. When one trips, an alert goes to the rooms watching that vehicle and is saved with the readings that caused it.</p>
+      <div class="alert" role="status">
+        <div class="alert-top"><span class="sev">Overspeed</span><span class="mono" id="al-id">KA05-MN-2208</span></div>
+        <div class="alert-body"><b id="al-speed">94 km/h</b><span>in a 60 km/h zone for 12 s, Outer Ring Road</span></div>
+      </div>
+      <ul class="rules">
+        <li><b>Overspeed</b>Above the zone limit for 10 s</li>
+        <li><b>Harsh braking</b>Deceleration beyond 0.4 g</li>
+        <li><b>Long idle</b>Engine on, stationary for 15 min</li>
+        <li><b>Geofence exit</b>Left the assigned depot area</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="launch shot" id="launch" data-shot="5">
+    <div class="launch-inner">
+      <div class="launch-head">
+        <div style="display:grid; gap:20px">
+          <p class="eyebrow">How it is built</p>
+          <h2>From the road to the screen in six steps.</h2>
+        </div>
+        <p class="lede">The whole path runs on the MERN stack with Socket.IO carrying live data. Vehicles are simulated by a Node script, so the platform can be load-tested without hardware.</p>
+      </div>
+
+      <div class="pipe-wrap">
+        <ol class="pipe">
+          <li><h3>Vehicles</h3><p>Simulated trucks and vans drive real road routes and emit events.</p><span class="tech">Node simulator</span></li>
+          <li><h3>Ingest API</h3><p>Validates each event and rate-limits each device.</p><span class="tech">Express, Zod, rate limiter</span></li>
+          <li><h3>Dedupe and batch</h3><p>Drops repeats and late events by vehicle and sequence.</p><span class="tech">In-memory buffer</span></li>
+          <li><h3>Store</h3><p>Writes events in bulk and keeps latest state per vehicle.</p><span class="tech">MongoDB time-series</span></li>
+          <li><h3>Broadcast</h3><p>Sends deltas to the rooms that subscribed.</p><span class="tech">Socket.IO rooms</span></li>
+          <li><h3>Dashboard</h3><p>Live map, charts, history and alerts.</p><span class="tech">React, MapLibre, charts</span></li>
+        </ol>
+      </div>
+
+      <div style="display:grid; gap:12px">
+        <div class="targets">
+          <div><b>2,000</b><small>Simulated vehicles at 1 Hz</small></div>
+          <div><b>&lt;300<span style="font-size:.5em"> ms</span></b><small>Vehicle event to dashboard</small></div>
+          <div><b>50</b><small>Dashboards connected at once</small></div>
+          <div><b>0</b><small>Duplicate points after replay</small></div>
+        </div>
+        <p class="targets-note">Load-test goals for the hackathon build. Replace with measured results once the stress test runs.</p>
+      </div>
+
+      <div class="final">
+        <h2>Watch your fleet move.</h2>
+        <div class="ctas">
+          <a class="btn" href="#top">Open the live dashboard</a>
+          <a class="btn ghost" href="#ingest">Read the architecture</a>
+        </div>
+      </div>
+
+      <footer>
+        <p>Fleetwake is a MERNIFY hackathon project: a real-time telemetry platform for vehicle fleets.</p>
+        <p>3D scene built with <a href="https://threejs.org" target="_blank" rel="noopener">Three.js</a> (MIT). Scroll-driven storytelling inspired by <a href="https://github.com/MengTo/kage" target="_blank" rel="noopener">Kage by Meng To</a>; no code or artwork reused. Fonts from Google Fonts (OFL).</p>
+      </footer>
+    </div>
+  </section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+  'use strict';
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var C = { sodium:0xf2a03d, signal:0x5fd4c4, alert:0xff5b4d, roomA:0xf2a03d, roomB:0x5fd4c4, roomC:0xb59cff, asphalt:0x07090d };
+
+  /* ------------------------------------------------ feed + counters (works even without WebGL) */
+  var feedEl = document.getElementById('feed');
+  var stVeh = document.getElementById('st-veh'), stEps = document.getElementById('st-eps'), stAl = document.getElementById('st-alerts');
+  var alSpeed = document.getElementById('al-speed');
+  var PLATES = ['KA01','KA03','KA05','KA51','KA53'], LET = 'ABCDEFGHJKLMNPRSTUVWXYZ';
+  function plate(i){ var r = (i*7919)%10000; return PLATES[i%5]+'-'+LET[(i*7)%23]+LET[(i*13+5)%23]+'-'+String(1000+r%9000); }
+
+  var vehicles = [], alertCount = 3, seqBase = 88000;
+  function pushFeed(v){
+    var li = document.createElement('li');
+    var kmh = v.kmh, warn = kmh > 80;
+    li.innerHTML = '<span class="id">'+v.plate+'</span><span>'+(seqBase + (v.seq|0))+'</span><span class="'+(warn?'warn':'ok')+'">'+kmh.toFixed(1)+' km/h</span><span class="geo">'+v.lat.toFixed(4)+', '+v.lng.toFixed(4)+'</span>';
+    feedEl.appendChild(li);
+    while (feedEl.children.length > 11) feedEl.removeChild(feedEl.firstChild);
+  }
+  // every vehicle reports about once a second
+  setInterval(function(){ var n = vehicles.length; stEps.textContent = n ? n - ((Math.random()*4)|0) : 0; stAl.textContent = alertCount; }, 1000);
+
+  /* ------------------------------------------------ three.js scene */
+  var canvas = document.getElementById('city');
+  var renderer = null;
+  try { renderer = window.THREE && new THREE.WebGLRenderer({ canvas:canvas, antialias:true, powerPreference:'high-performance' }); } catch(e){ renderer = null; }
+  if (!renderer){ startFallbackFeed(); return; }
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setClearColor(C.asphalt, 1);
+
+  var scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(C.asphalt, 0.0062);
+  var camera = new THREE.PerspectiveCamera(45, 1, 0.3, 900);
+  scene.add(new THREE.HemisphereLight(0x9fb2cc, 0x0a0c10, 0.75));
+  var dl = new THREE.DirectionalLight(0xffd7a0, 0.55); dl.position.set(-40, 80, 30); scene.add(dl);
+  var dl2 = new THREE.DirectionalLight(0x7f9fd0, 0.25); dl2.position.set(50, 40, -60); scene.add(dl2);
+
+  function glowTex(){
+    var c = document.createElement('canvas'); c.width = c.height = 64;
+    var g = c.getContext('2d'), gr = g.createRadialGradient(32,32,0,32,32,32);
+    gr.addColorStop(0,'rgba(255,255,255,1)'); gr.addColorStop(.3,'rgba(255,255,255,.6)'); gr.addColorStop(1,'rgba(255,255,255,0)');
+    g.fillStyle = gr; g.fillRect(0,0,64,64);
+    return new THREE.CanvasTexture(c);
+  }
+  var GLOW = glowTex();
+  function pointsMat(size, color, opts){
+    return new THREE.PointsMaterial(Object.assign({ size:size, map:GLOW, color:color, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, sizeAttenuation:true }, opts||{}));
+  }
+  function mulberry(a){ return function(){ a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+  // ground: dark plane + faint survey grid
+  var ground = new THREE.Mesh(new THREE.PlaneGeometry(1200, 1200), new THREE.MeshLambertMaterial({ color:0x0a0d12 }));
+  ground.rotation.x = -Math.PI/2; ground.position.y = -0.05; scene.add(ground);
+  var grid = new THREE.GridHelper(800, 80, 0x18202a, 0x10161e); scene.add(grid);
+
+  // roads
+  var V = function(x,z){ return new THREE.Vector3(x,0,z); };
+  var roads = [
+    { curve:new THREE.CatmullRomCurve3([V(-170,190),V(-80,95),V(-20,25),V(10,-20),V(60,-90),V(170,-200)]), width:16, lanes:4, mix:['sedan','sedan','suv','suv','truck','truck','bus','bike','bike'] },
+    { curve:new THREE.CatmullRomCurve3((function(){ var a=[]; for (var i=0;i<16;i++){ var t=i/16*Math.PI*2; a.push(V(Math.cos(t)*92, Math.sin(t)*74)); } return a; })(), true), width:11, lanes:2, mix:['sedan','sedan','suv','bike','bike','bus'] },
+    { curve:new THREE.CatmullRomCurve3([V(-200,-30),V(-90,-12),V(0,8),V(90,26),V(200,50)]), width:11, lanes:2, mix:['sedan','suv','truck','bike','sedan'] }
+  ];
+  function nearRoad(x, z, pad){
+    for (var r=0;r<roads.length;r++){
+      var pts = roads[r].pts || (roads[r].pts = roads[r].curve.getSpacedPoints(160)), rr = roads[r].width/2+pad;
+      for (var i=0;i<pts.length;i++){ var dx = pts[i].x-x, dz = pts[i].z-z; if (dx*dx+dz*dz < rr*rr) return true; }
+    }
+    return false;
+  }
+  var UP = new THREE.Vector3(0,1,0), tmpT = new THREE.Vector3(), tmpN = new THREE.Vector3(), tmpP = new THREE.Vector3();
+  roads.forEach(function(rd){
+    rd.len = rd.curve.getLength();
+    var N = 360, pos = [], idx = [];
+    for (var i=0;i<=N;i++){
+      var u = i/N; rd.curve.getPointAt(u, tmpP); rd.curve.getTangentAt(u, tmpT); tmpN.crossVectors(tmpT, UP).normalize();
+      pos.push(tmpP.x + tmpN.x*rd.width/2, .02, tmpP.z + tmpN.z*rd.width/2, tmpP.x - tmpN.x*rd.width/2, .02, tmpP.z - tmpN.z*rd.width/2);
+      if (i<N){ var a=i*2; idx.push(a, a+1, a+2, a+1, a+3, a+2); }
+    }
+    var g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos,3)); g.setIndex(idx); g.computeVertexNormals();
+    scene.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color:0x161b23, side:THREE.DoubleSide })));
+    function offsetLine(off, mat, y){
+      var p = [];
+      for (var i=0;i<=N;i++){ var u=i/N; rd.curve.getPointAt(u,tmpP); rd.curve.getTangentAt(u,tmpT); tmpN.crossVectors(tmpT,UP).normalize(); p.push(new THREE.Vector3(tmpP.x+tmpN.x*off, y, tmpP.z+tmpN.z*off)); }
+      var l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(p), mat); if (mat.isLineDashedMaterial) l.computeLineDistances(); scene.add(l);
+    }
+    var edge = new THREE.LineBasicMaterial({ color:0x6b5a3e, transparent:true, opacity:.7 });
+    offsetLine(rd.width/2, edge, .05); offsetLine(-rd.width/2, edge, .05);
+    var dash = new THREE.LineDashedMaterial({ color:0xc9b48a, dashSize:3, gapSize:5, transparent:true, opacity:.45 });
+    for (var k=1;k<rd.lanes;k++) offsetLine(-rd.width/2 + k*rd.width/rd.lanes, dash, .06);
+  });
+
+  // city blocks: low dark buildings set back from the roads
+  (function(){
+    var geo = new THREE.BoxGeometry(1,1,1); geo.translate(0,.5,0);
+    var count = 240, mesh = new THREE.InstancedMesh(geo, new THREE.MeshLambertMaterial({ color:0x121821 }), count), d = new THREE.Object3D();
+    var rnd = mulberry(7), n = 0;
+    while (n < count){
+      var x = (rnd()-.5)*360, z = (rnd()-.5)*360;
+      if (nearRoad(x, z, 16)) continue;
+      d.position.set(x, 0, z); d.scale.set(6 + rnd()*12, 3 + Math.pow(rnd(), 2.2)*34, 6 + rnd()*12); d.updateMatrix();
+      mesh.setMatrixAt(n++, d.matrix);
+    }
+    scene.add(mesh);
+  })();
+
+  // street lamps along the highway: poles, arms and a small lamp head
+  (function(){
+    var rd = roads[0], poles = [], heads = [];
+    for (var s=0; s<rd.len; s+=16){
+      var u = s/rd.len; rd.curve.getPointAt(u,tmpP); rd.curve.getTangentAt(u,tmpT); tmpN.crossVectors(tmpT,UP).normalize();
+      [1,-1].forEach(function(side){
+        var x = tmpP.x + tmpN.x*(rd.width/2+1.5)*side, z = tmpP.z + tmpN.z*(rd.width/2+1.5)*side;
+        var hx = x - tmpN.x*2*side, hz = z - tmpN.z*2*side;
+        poles.push(x,0,z, x,7.5,z, x,7.5,z, hx,7.5,hz); heads.push(hx, 7.3, hz);
+      });
+    }
+    var pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.Float32BufferAttribute(poles,3));
+    scene.add(new THREE.LineSegments(pg, new THREE.LineBasicMaterial({ color:0x4a505a })));
+    var hg = new THREE.BufferGeometry(); hg.setAttribute('position', new THREE.Float32BufferAttribute(heads,3));
+    scene.add(new THREE.Points(hg, pointsMat(1.6, 0xffc67a, { opacity:.95 })));
+  })();
+
+  /* ------------------------------------------------ vehicle models */
+  // Reflections: a small studio-at-night environment so painted bodies and glass pick up highlights.
+  (function(){
+    var pm = new THREE.PMREMGenerator(renderer), env = new THREE.Scene();
+    var sg = new THREE.SphereGeometry(50, 32, 16), sc = [], top = new THREE.Color(0x3a4c66), hor = new THREE.Color(0x8a7458), bot = new THREE.Color(0x07080b), c = new THREE.Color();
+    for (var i=0;i<sg.attributes.position.count;i++){ var y = sg.attributes.position.getY(i)/50; if (y>0) c.copy(hor).lerp(top, Math.pow(y,.6)); else c.copy(hor).lerp(bot, Math.pow(-y,.4)); sc.push(c.r,c.g,c.b); }
+    sg.setAttribute('color', new THREE.Float32BufferAttribute(sc,3));
+    env.add(new THREE.Mesh(sg, new THREE.MeshBasicMaterial({ vertexColors:true, side:THREE.BackSide })));
+    [[0,40,0,60,1,8],[-30,25,20,4,30,1],[30,22,-10,4,24,1]].forEach(function(b){
+      var m = new THREE.Mesh(new THREE.BoxGeometry(b[3],b[4],b[5]), new THREE.MeshBasicMaterial({ color:0xfff2dc })); m.position.set(b[0],b[1],b[2]); m.lookAt(0,0,0); env.add(m);
+    });
+    scene.environment = pm.fromScene(env, 0.03).texture;
+  })();
+
+  // Bodies are side profiles extruded across the car's width with rounded bevels.
+  // Each model has three parts that share one transform: paint (tinted per vehicle), details (glass, tyres, rims, trim) and lamps (unlit).
+  var GLASS = [.04,.05,.07], TYRE = [.03,.03,.035], RIM = [.72,.74,.78], HUB = [.12,.13,.15], TRIM = [.06,.065,.075], HEAD = [1,.97,.9], TAIL = [1,.12,.08], AMBER = [1,.6,.15];
+  function tint(geo, col){
+    geo = geo.index ? geo.toNonIndexed() : geo;
+    var n = geo.attributes.position.count, c = new Float32Array(n*3);
+    for (var i=0;i<n;i++){ c[i*3]=col[0]; c[i*3+1]=col[1]; c[i*3+2]=col[2]; }
+    geo.setAttribute('color', new THREE.BufferAttribute(c,3));
+    return geo;
+  }
+  function profile(draw, width, bevel, y0, col){
+    var s = new THREE.Shape(); draw(s);
+    var g = new THREE.ExtrudeGeometry(s, { depth:width - bevel*2, bevelEnabled:true, bevelThickness:bevel, bevelSize:bevel*.8, bevelSegments:3, curveSegments:10 });
+    g.translate(0, y0 || 0, -(width - bevel*2)/2); g.rotateY(-Math.PI/2);  // shape x -> vehicle +z (front)
+    return tint(g, col || [1,1,1]);
+  }
+  function box(w,h,l,x,y,z,col){ var g = new THREE.BoxGeometry(w,h,l); g.translate(x,y,z); return tint(g,col); }
+  function rbox(w,h,l,r,x,y,z,col){  // box with rounded vertical edges seen from the side
+    return profile(function(s){ s.moveTo(-l/2+r,0); s.lineTo(l/2-r,0); s.quadraticCurveTo(l/2,0,l/2,r); s.lineTo(l/2,h-r); s.quadraticCurveTo(l/2,h,l/2-r,h); s.lineTo(-l/2+r,h); s.quadraticCurveTo(-l/2,h,-l/2,h-r); s.lineTo(-l/2,r); s.quadraticCurveTo(-l/2,0,-l/2+r,0); }, w, Math.min(.1, r*.5), 0, col).translate(x,y,z);
+  }
+  function wheel(r, w, x, z, spokes){
+    var out = x > 0 ? 1 : -1, parts = [];
+    var t = new THREE.CylinderGeometry(r, r, w, 22); t.rotateZ(Math.PI/2); t.translate(x, r, z); parts.push(tint(t, TYRE));
+    var rim = new THREE.CylinderGeometry(r*.7, r*.7, .04, 22); rim.rotateZ(Math.PI/2); rim.translate(x + out*(w/2+.005), r, z); parts.push(tint(rim, HUB));
+    for (var k=0;k<spokes;k++){
+      var sp = new THREE.BoxGeometry(.035, r*1.32, .07); sp.rotateX(k/spokes*Math.PI); sp.translate(x + out*(w/2+.03), r, z); parts.push(tint(sp, RIM));
+    }
+    var hub = new THREE.CylinderGeometry(r*.16, r*.16, .06, 12); hub.rotateZ(Math.PI/2); hub.translate(x + out*(w/2+.05), r, z); parts.push(tint(hub, RIM));
+    return parts;
+  }
+  function axle(r, w, half, zs, spokes){ var a=[]; zs.forEach(function(z){ a = a.concat(wheel(r,w,half,z,spokes), wheel(r,w,-half,z,spokes)); }); return a; }
+  function merge(parts){
+    var count = 0; parts.forEach(function(p){ count += p.attributes.position.count; });
+    var pos = new Float32Array(count*3), nor = new Float32Array(count*3), col = new Float32Array(count*3), o = 0;
+    parts.forEach(function(p){ pos.set(p.attributes.position.array, o*3); nor.set(p.attributes.normal.array, o*3); col.set(p.attributes.color.array, o*3); o += p.attributes.position.count; });
+    var g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(pos,3)); g.setAttribute('normal', new THREE.BufferAttribute(nor,3)); g.setAttribute('color', new THREE.BufferAttribute(col,3));
+    return g;
+  }
+  // wheel arch helper: bottom edge running front -> rear, arching over each axle
+  function underside(s, front, rear, axles, r, y){
+    s.moveTo(front, y);
+    axles.forEach(function(z){ s.lineTo(z + r, y); s.absarc(z, y + .02, r, 0, Math.PI, false); });
+    s.lineTo(rear, y);
+  }
+
+  var MODELS = {};
+  // Fastback electric saloon: long low hood, glass roof flowing into a short tail, full-width light bars.
+  MODELS.sedan = { speed:[9,13], paint: merge([profile(function(s){
+      underside(s, 2.3, -2.28, [1.46,-1.42], .44, .28);
+      s.quadraticCurveTo(-2.46,.3,-2.46,.58); s.lineTo(-2.44,.8); s.quadraticCurveTo(-2.42,.92,-2.15,.95);
+      s.quadraticCurveTo(-1.3,1.33,-.5,1.39); s.quadraticCurveTo(.15,1.41,.7,.97);
+      s.quadraticCurveTo(1.7,.83,2.36,.66); s.quadraticCurveTo(2.52,.6,2.5,.44); s.quadraticCurveTo(2.46,.28,2.3,.28);
+    }, 1.92, .2)]),
+    detail: merge([
+      profile(function(s){ s.moveTo(-1.95,.94); s.quadraticCurveTo(-1.2,1.3,-.5,1.345); s.quadraticCurveTo(.05,1.365,.62,.96); s.lineTo(-1.95,.94); }, 1.96, .14, 0, GLASS),
+      profile(function(s){ s.moveTo(-2.06,.96); s.quadraticCurveTo(-1.3,1.37,-.5,1.43); s.quadraticCurveTo(.15,1.455,.76,.98); s.lineTo(-2.06,.96); }, 1.6, .1, 0, GLASS),
+      box(1.7,.12,3.0, 0,.3,0, TRIM),
+      box(1.2,.14,.08, 0,.38,2.6, TRIM),
+      box(1.3,.1,.08, 0,.36,-2.56, TRIM)
+    ].concat(axle(.37,.25,.83,[1.46,-1.42],10))),
+    lamps: merge([box(1.3,.035,.06, 0,.6,2.62, HEAD), box(.05,.035,.34, .74,.62,2.44, HEAD), box(.05,.035,.34, -.74,.62,2.44, HEAD), box(1.56,.045,.06, 0,.84,-2.6, TAIL)]) };
+
+  MODELS.suv = { speed:[8,12], paint: merge([profile(function(s){
+      underside(s, 2.3, -2.3, [1.5,-1.45], .5, .38);
+      s.quadraticCurveTo(-2.46,.4,-2.46,.75); s.lineTo(-2.42,1.25); s.quadraticCurveTo(-2.36,1.66,-2.0,1.7);
+      s.lineTo(-.2,1.76); s.quadraticCurveTo(.3,1.76,.9,1.22); s.quadraticCurveTo(1.8,1.12,2.36,1.0);
+      s.quadraticCurveTo(2.5,.92,2.48,.6); s.quadraticCurveTo(2.46,.38,2.3,.38);
+    }, 2.0, .16)]),
+    detail: merge([
+      profile(function(s){ s.moveTo(-2.25,1.24); s.lineTo(-2.2,1.62); s.lineTo(-.2,1.69); s.quadraticCurveTo(.2,1.69,.82,1.24); s.lineTo(-2.25,1.24); }, 2.04, .13, 0, GLASS),
+      box(1.8,.22,3.2, 0,.4,0, TRIM),
+      box(.08,.06,2.6, .7,1.86,-.6, TRIM), box(.08,.06,2.6, -.7,1.86,-.6, TRIM)
+    ].concat(axle(.46,.3,.88,[1.5,-1.45],6))),
+    lamps: merge([box(1.6,.06,.05, 0,1.0,2.4, HEAD), box(.1,.34,.05, .86,1.2,-2.45, TAIL), box(.1,.34,.05, -.86,1.2,-2.45, TAIL), box(1.4,.04,.05, 0,1.3,-2.45, TAIL)]) };
+
+  // Box truck: rounded cab and a cargo body
+  MODELS.truck = { speed:[6,8.5], paint: merge([profile(function(s){
+      underside(s, 4.55, 2.55, [3.6], .52, .45);
+      s.lineTo(2.55,2.85); s.lineTo(3.7,2.9); s.quadraticCurveTo(4.3,2.9,4.45,2.2); s.lineTo(4.62,1.3); s.quadraticCurveTo(4.66,.45,4.55,.45);
+    }, 2.35, .14)]),
+    detail: merge([
+      rbox(2.5,2.9,6.6,.18, 0,.75,-.9, [.8,.82,.85]),
+      profile(function(s){ s.moveTo(3.5,1.95); s.lineTo(3.6,2.7); s.quadraticCurveTo(4.2,2.7,4.3,2.1); s.lineTo(4.4,1.95); s.lineTo(3.5,1.95); }, 2.4, .1, 0, GLASS),
+      box(2.0,.3,8.6, 0,.62,-.2, TRIM),
+      box(2.4,.4,.2, 0,.6,4.66, TRIM)
+    ].concat(axle(.52,.38,1.02,[3.6,-2.2,-3.35],6))),
+    lamps: merge([box(.36,.12,.05, .82,1.15,4.66, HEAD), box(.36,.12,.05, -.82,1.15,4.66, HEAD), box(.12,.3,.05, 1.05,1.0,-4.24, TAIL), box(.12,.3,.05, -1.05,1.0,-4.24, TAIL), box(2.2,.05,.05, 0,3.62,-4.24, AMBER)]) };
+
+  MODELS.bus = { speed:[6,8], paint: merge([rbox(2.5,2.85,11.2,.45, 0,.45,0)]),
+    detail: merge([
+      box(2.56,1.0,9.2, 0,2.05,-.6, GLASS),
+      box(2.3,1.35,.06, 0,1.95,5.62, GLASS),
+      box(2.0,.22,7.0, 0,3.4,-.5, TRIM),
+      box(2.4,.3,11.0, 0,.5,0, TRIM)
+    ].concat(axle(.52,.34,1.05,[3.9,-3.6],6))),
+    lamps: merge([box(.4,.1,.05, .85,.95,5.63, HEAD), box(.4,.1,.05, -.85,.95,5.63, HEAD), box(2.0,.16,.05, 0,3.0,5.63, AMBER), box(.14,.4,.05, 1.0,1.1,-5.63, TAIL), box(.14,.4,.05, -1.0,1.1,-5.63, TAIL)]) };
+
+  // Motorbike with rider
+  MODELS.bike = { speed:[10,14], paint: merge([
+      profile(function(s){ s.moveTo(-.55,.62); s.lineTo(.2,.62); s.quadraticCurveTo(.62,.66,.72,1.05); s.quadraticCurveTo(.5,1.18,.2,1.1); s.lineTo(-.15,1.0); s.quadraticCurveTo(-.6,1.0,-.7,.86); s.lineTo(-.55,.62); }, .34, .08)
+    ]),
+    detail: merge([
+      wheel(.33,.12,.0,.72,5)[0], wheel(.33,.12,0,.72,5)[1], wheel(.33,.12,0,-.72,5)[0], wheel(.33,.12,0,-.72,5)[1],
+      box(.3,.1,.62, 0,1.04,-.32, TRIM),
+      box(.06,.5,.06, 0,.8,.62, RIM),
+      box(.6,.04,.04, 0,1.14,.56, TRIM),
+      rbox(.4,.66,.34,.12, 0,1.1,-.15, [.16,.18,.22]),
+      box(.14,.42,.12, .2,.8,0, [.12,.13,.16]), box(.14,.42,.12, -.2,.8,0, [.12,.13,.16]),
+      rbox(.3,.3,.32,.14, 0,1.76,-.05, [.86,.86,.84])
+    ]),
+    lamps: merge([box(.14,.1,.04, 0,1.0,.74, HEAD), box(.14,.05,.04, 0,.95,-.74, TAIL)]) };
+
+  var PAINTS = [0xd9dde2, 0xc4c9cf, 0xe8e9ea, 0x9aa3ad, 0x2a2e35, 0x1d3f66, 0x8c2420, 0x55687a, 0xb8c96a];
+  var BUS_PAINTS = [0x2f6db3, 0xc23b2e, 0xd9a330], TRUCK_PAINTS = [0xe6e6e2, 0x2c4a7a, 0x9b2a24, 0x3f5d4a];
+
+  // vehicles
+  var NV = window.innerWidth < 700 ? 70 : 110;
+  var rnd = mulberry(42);
+  var ROOMS = [new THREE.Color(C.roomA), new THREE.Color(C.roomB), new THREE.Color(C.roomC)];
+  for (var i=0;i<NV;i++){
+    var rd = roads[i < NV*.5 ? 0 : (i < NV*.78 ? 1 : 2)];
+    var type = rd.mix[(rnd()*rd.mix.length)|0], m = MODELS[type];
+    var lane = Math.floor(rnd()*rd.lanes), dir = lane < rd.lanes/2 ? 1 : -1;
+    if ((type==='truck'||type==='bus') && rd.lanes===4) lane = dir>0 ? 0 : 3;  // heavy vehicles keep to the outer lanes
+    var pal = type==='bus' ? BUS_PAINTS : type==='truck' ? TRUCK_PAINTS : PAINTS;
+    vehicles.push({ road:rd, type:type, u:rnd(), dir:dir, off:-rd.width/2 + (lane+.5)*rd.width/rd.lanes,
+      speed:m.speed[0] + rnd()*(m.speed[1]-m.speed[0]), room:i%3, plate:plate(i), seq:rnd()*400,
+      paint:new THREE.Color(pal[(rnd()*pal.length)|0]), pos:new THREE.Vector3(), fwd:new THREE.Vector3(), kmh:0, lat:0, lng:0, trail:null });
+  }
+  // Two cars with a role: the silver saloon the opening shot follows, and the car that trips the overspeed rule.
+  // Both drive the closed Outer Ring Road so the camera never sees them wrap around.
+  function onRing(v, lane, u){ var rd = roads[1]; v.road = rd; v.type = 'sedan'; v.dir = lane===0 ? 1 : -1; v.off = -rd.width/2 + (lane+.5)*rd.width/rd.lanes; v.u = u; }
+  var HERO = 0, hero = vehicles[HERO];
+  onRing(hero, 0, .62); hero.speed = 9.5; hero.paint.set(0xdfe3e7); hero.plate = 'KA01-AB-4471';
+  var FLAG = 3, flagged = vehicles[FLAG];
+  onRing(flagged, 0, .2); flagged.plate = 'KA05-MN-2208'; flagged.baseSpeed = 11; flagged.paint.set(0xe6e8ea);
+  document.getElementById('al-id').textContent = flagged.plate;
+  stVeh.textContent = NV.toLocaleString('en-IN');
+
+  // three InstancedMeshes per model type, all sharing each vehicle's transform
+  var paintMat = new THREE.MeshStandardMaterial({ color:0xffffff, metalness:.6, roughness:.26, envMapIntensity:1.2 });
+  var detailMat = new THREE.MeshStandardMaterial({ vertexColors:true, metalness:.5, roughness:.22, envMapIntensity:1.0 });
+  var lampMat = new THREE.MeshBasicMaterial({ vertexColors:true });
+  var groups = {};
+  Object.keys(MODELS).forEach(function(t){
+    var list = vehicles.filter(function(v){ return v.type===t; });
+    if (!list.length) return;
+    function inst(geo, mat){ var im = new THREE.InstancedMesh(geo, mat, list.length); im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); im.frustumCulled = false; scene.add(im); return im; }
+    var g = { paint:inst(MODELS[t].paint, paintMat), detail:inst(MODELS[t].detail, detailMat), lamps:inst(MODELS[t].lamps, lampMat) };
+    list.forEach(function(v, k){ v.slot = k; g.paint.setColorAt(k, v.paint); });
+    groups[t] = g;
+  });
+
+  // anomaly rings on the road under the flagged car
+  var alertRing = new THREE.Mesh(new THREE.RingGeometry(3.2, 3.6, 48), new THREE.MeshBasicMaterial({ color:C.alert, transparent:true, opacity:0, side:THREE.DoubleSide, depthWrite:false }));
+  alertRing.rotation.x = -Math.PI/2; scene.add(alertRing);
+  var alertRing2 = alertRing.clone(); alertRing2.material = alertRing.material.clone(); scene.add(alertRing2);
+
+  // trails (replay chapter): history in pale bone, the newest stretch in live teal
+  var TRAIL_N = 140, trailVehicles = [], trailMat = new THREE.LineBasicMaterial({ vertexColors:true, transparent:true, opacity:0, depthWrite:false });
+  for (i=0;i<14;i++){
+    var tv = vehicles[(i*11+1)%NV]; if (tv === flagged) continue;
+    var g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(TRAIL_N*3),3));
+    var cols = new Float32Array(TRAIL_N*3);
+    for (var k=0;k<TRAIL_N;k++){ var f = k/(TRAIL_N-1), live = f > .82, c = new THREE.Color(live ? C.signal : 0xe8e4da); c.multiplyScalar(live ? 1 : .15 + f*.6); cols.set([c.r,c.g,c.b], k*3); }
+    g.setAttribute('color', new THREE.Float32BufferAttribute(cols,3));
+    var line = new THREE.Line(g, trailMat); line.frustumCulled = false; scene.add(line);
+    tv.trail = { buf:[], line:line, acc:0 }; trailVehicles.push(tv);
+  }
+
+  function place(v){
+    var rd = v.road; rd.curve.getPointAt(v.u, v.pos); rd.curve.getTangentAt(v.u, tmpT);
+    tmpN.crossVectors(tmpT, UP).normalize(); v.pos.addScaledVector(tmpN, v.off);
+    v.fwd.copy(tmpT); if (v.dir<0) v.fwd.negate();
+    v.lat = 12.9716 - v.pos.z*0.00021; v.lng = 77.5946 + v.pos.x*0.00021;
+  }
+
+  /* ------------------------------------------------ camera shots */
+  var chase = vehicles.filter(function(v){ return v.road===roads[0] && v.dir>0 && v.type==='truck'; })[0] || vehicles[0];
+  var side = new THREE.Vector3();
+  var shots = [
+    function(o){ var q = hero.pos; side.crossVectors(hero.fwd, UP);                   // hero: car-ad shot, front three-quarter of the silver saloon
+      o.p.set(q.x + hero.fwd.x*10.5 + side.x*7.5, 1.8, q.z + hero.fwd.z*10.5 + side.z*7.5); o.l.set(q.x + side.x*2.7, -.5, q.z + side.z*2.7); },
+    function(o){ var q = chase.pos; side.crossVectors(chase.fwd, UP);                 // ingest: street level, alongside traffic
+      o.p.set(q.x - chase.fwd.x*10 + side.x*14, 4.5, q.z - chase.fwd.z*10 + side.z*14); o.l.set(q.x + chase.fwd.x*14, 1.5, q.z + chase.fwd.z*14); },
+    function(o){ o.p.set(4, 150, 34); o.l.set(0, 0, -2); },                        // broadcast: overhead rooms
+    function(o){ o.p.set(70, 44, 70); o.l.set(-6, 0, 0); },                        // replay: trails
+    function(o){ var q = flagged.pos; side.crossVectors(flagged.fwd, UP);            // detect: follow the flagged car
+      o.p.set(q.x - flagged.fwd.x*20 - side.x*6, 15, q.z - flagged.fwd.z*20 - side.z*6); o.l.set(q.x + flagged.fwd.x*4 + side.x*7, 0, q.z + flagged.fwd.z*4 + side.z*7); },
+    function(o){ o.p.set(-150, 95, 170); o.l.set(10, 0, -10); }                    // launch: wide
+  ];
+  var A = { p:new THREE.Vector3(), l:new THREE.Vector3() }, B = { p:new THREE.Vector3(), l:new THREE.Vector3() };
+  var camPos = new THREE.Vector3(), camLook = new THREE.Vector3(), camInit = false, wantP = new THREE.Vector3(), wantL = new THREE.Vector3();
+
+  var sections = Array.prototype.slice.call(document.querySelectorAll('.shot'));
+  var railLinks = Array.prototype.slice.call(document.querySelectorAll('[data-rail]'));
+  var shot = 0, centers = [];
+  function measure(){ centers = sections.map(function(s){ var r = s.getBoundingClientRect(); return r.top + window.scrollY + r.height/2; }); }
+  function ease(x){ return x<.5 ? 4*x*x*x : 1 - Math.pow(-2*x+2, 3)/2; }
+  function readScroll(){
+    var mid = window.scrollY + window.innerHeight/2;
+    if (mid <= centers[0]) shot = 0;
+    else if (mid >= centers[centers.length-1]) shot = centers.length-1;
+    else for (var i=0;i<centers.length-1;i++){ if (mid < centers[i+1]){ shot = i + ease((mid-centers[i])/(centers[i+1]-centers[i])); break; } }
+    var active = Math.round(shot);
+    railLinks.forEach(function(a, i){ a.classList.toggle('on', i===active); });
+  }
+  function weight(n){ return Math.max(0, 1 - Math.abs(shot - n)); }
+
+  function resize(){
+    var w = window.innerWidth, h = window.innerHeight;
+    renderer.setSize(w, h, false); camera.aspect = w/h;
+    camera.fov = w < 700 ? 60 : 45; camera.updateProjectionMatrix(); measure(); readScroll();
+  }
+  window.addEventListener('resize', resize); window.addEventListener('scroll', readScroll, { passive:true });
+  window.addEventListener('load', function(){ measure(); readScroll(); });
+  resize();
+
+  /* ------------------------------------------------ loop */
+  var dummy = new THREE.Object3D(), clock = new THREE.Clock(), feedAcc = 0, el = 0, visible = true;
+  document.addEventListener('visibilitychange', function(){ visible = !document.hidden; clock.getDelta(); });
+  var tmpC = new THREE.Color(), ALERT = new THREE.Color(C.alert);
+
+  function frame(){
+    requestAnimationFrame(frame);
+    if (!visible) return;
+    var dt = Math.min(clock.getDelta(), .05), sim = reduced ? dt*.25 : dt; el += sim;
+    var wRooms = weight(2), wReplay = weight(3), wDetect = weight(4);
+    flagged.speed = flagged.baseSpeed + wDetect*(23.5 - flagged.baseSpeed);
+
+    for (var i=0;i<NV;i++){
+      var v = vehicles[i], g = groups[v.type];
+      v.u += v.dir * v.speed * sim / v.road.len; v.u -= Math.floor(v.u);
+      v.seq += sim; place(v);
+      v.kmh = v.speed*4 + Math.sin(el*1.3 + i)*1.5;
+      dummy.position.copy(v.pos); dummy.lookAt(tmpP.copy(v.pos).add(v.fwd));
+      if (v.type==='bike') dummy.rotateZ(Math.sin(el*.8 + i)*.06);
+      dummy.updateMatrix(); g.paint.setMatrixAt(v.slot, dummy.matrix); g.detail.setMatrixAt(v.slot, dummy.matrix); g.lamps.setMatrixAt(v.slot, dummy.matrix);
+      tmpC.copy(v.paint).lerp(ROOMS[v.room], wRooms*.9);
+      if (v===flagged) tmpC.lerp(ALERT, wDetect);
+      g.paint.setColorAt(v.slot, tmpC);
+      if (v.trail){
+        v.trail.acc += sim;
+        if (v.trail.acc > .09){ v.trail.acc = 0; v.trail.buf.push(v.pos.x, v.pos.z); if (v.trail.buf.length > TRAIL_N*2) v.trail.buf.splice(0, 2); }
+      }
+    }
+    Object.keys(groups).forEach(function(t){ var g = groups[t]; g.paint.instanceMatrix.needsUpdate = g.detail.instanceMatrix.needsUpdate = g.lamps.instanceMatrix.needsUpdate = true; if (g.paint.instanceColor) g.paint.instanceColor.needsUpdate = true; });
+
+    trailMat.opacity = wReplay * .95;
+    if (wReplay > .01) trailVehicles.forEach(function(v){
+      var arr = v.trail.line.geometry.attributes.position.array, b = v.trail.buf, n = b.length/2;
+      for (var k=0;k<TRAIL_N;k++){ var src = Math.max(0, Math.min(n-1, k - (TRAIL_N - n))); arr[k*3] = n ? b[src*2] : v.pos.x; arr[k*3+1] = .4; arr[k*3+2] = n ? b[src*2+1] : v.pos.z; }
+      v.trail.line.geometry.attributes.position.needsUpdate = true;
+    });
+
+    var ph = (el*1.2)%1, ph2 = (ph+.5)%1;
+    alertRing.position.set(flagged.pos.x, .1, flagged.pos.z); alertRing.scale.setScalar(.6 + ph*1.1); alertRing.material.opacity = wDetect*(1-ph)*.8;
+    alertRing2.position.copy(alertRing.position); alertRing2.scale.setScalar(.6 + ph2*1.1); alertRing2.material.opacity = wDetect*(1-ph2)*.8;
+    alSpeed.textContent = Math.round(flagged.speed*4) + ' km/h';
+
+    feedAcc += dt;
+    if (feedAcc > .32){ feedAcc = 0; pushFeed(Math.random() < .12 + wDetect*.4 ? flagged : vehicles[(Math.random()*NV)|0]); if (flagged.kmh > 80 && Math.random()<.04) alertCount++; }
+
+    var i0 = Math.floor(shot), i1 = Math.min(i0+1, shots.length-1), f = shot - i0;
+    shots[i0](A); shots[i1](B);
+    wantP.copy(A.p).lerp(B.p, f); wantL.copy(A.l).lerp(B.l, f);
+    var k = reduced ? 1 : 1 - Math.pow(.02 * (1 - Math.max(weight(0), weight(1), weight(4))*.98), dt);  // track moving subjects tightly
+    if (!camInit){ camPos.copy(wantP); camLook.copy(wantL); camInit = true; }
+    camPos.lerp(wantP, k); camLook.lerp(wantL, k);
+    camera.position.copy(camPos); camera.lookAt(camLook);
+    renderer.render(scene, camera);
+  }
+  frame();
+
+  function startFallbackFeed(){
+    var r = mulberry(9);
+    for (var i=0;i<80;i++) vehicles.push({ plate:plate(i), seq:r()*400, kmh:25+r()*35, lat:12.9716+(r()-.5)*.06, lng:77.5946+(r()-.5)*.06 });
+    stVeh.textContent = vehicles.length;
+    setInterval(function(){ var v = vehicles[(r()*vehicles.length)|0]; v.seq++; v.kmh = Math.max(5, v.kmh + (r()-.5)*6); pushFeed(v); }, 320);
+  }
+})();
+</script>
+</body>
+</html>
