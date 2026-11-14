@@ -1,0 +1,24 @@
+{
+  "name": "fleetwake",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "server",
+    "client",
+    "simulator"
+  ],
+  "scripts": {
+    "db": "mkdir -p .mongo-data && mongod --dbpath .mongo-data --bind_ip 127.0.0.1 --port 27017 --fork --logpath .mongo-data/mongod.log",
+    "db:stop": "mongod --dbpath .mongo-data --shutdown",
+    "dev": "concurrently -k -n server,client,sim -c \"#FF6B5B,#F4EDE0,#8FA3D6\" \"npm run dev -w server\" \"npm run dev -w client\" \"npm run start -w simulator\"",
+    "dev:nosim": "concurrently -k -n server,client -c \"#FF6B5B,#F4EDE0\" \"npm run dev -w server\" \"npm run dev -w client\"",
+    "build": "npm run build -w client",
+    "start": "npm run start -w server",
+    "simulate": "npm run start -w simulator --",
+    "stress": "npm run stress -w simulator --",
+    "test": "npm test -w server"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.7"
+  }
+}

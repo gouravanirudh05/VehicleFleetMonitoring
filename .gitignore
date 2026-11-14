@@ -147,3 +147,7 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# Local MongoDB data used for development
+.mongo-data/
+stress-results.json

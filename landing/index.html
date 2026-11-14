@@ -5,25 +5,30 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Fleetwake</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<meta name="description" content="Fleetwake streams GPS, speed and engine telemetry from every vehicle in your fleet to every open dashboard, live.">
+<meta name="description" content="Fleetwake is the live control room for logistics fleets: every vehicle on one map, incidents caught as they happen, and one-click instructions to drivers.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
 /* Layout: a fixed live 3D city at night; editorial chapters scroll over it, copy alternating left and right, a chapter rail on the right edge. */
 :root{
-  color-scheme: dark;
-  --asphalt:#07090d;      /* page ground, wet road at night */
-  --asphalt-2:#0d1117;    /* raised panels */
-  --sodium:#f2a03d;       /* sodium street lamps, primary accent */
-  --signal:#5fd4c4;       /* live data packets */
-  --bone:#e8e4da;         /* headings */
-  --fog:#a7adb5;          /* body text */
-  --dim:#6b727c;          /* captions */
-  --line:rgba(232,228,218,.14);
-  --scrim:rgba(7,9,13,.72);
-  --alert:#ff5b4d;        /* semantic: anomaly */
-  --room-a:#f2a03d; --room-b:#5fd4c4; --room-c:#b59cff;
+  color-scheme: light;
+  --bg:#F3F0EC;           /* page ground: warm cream */
+  --raised:#ECE6DE;       /* hover */
+  --panel:#FBF9F6;        /* cards */
+  --accent:#F59958;       /* soft orange: buttons, markers, fills (ink text on it) */
+  --accent-hover:#EF8743;
+  --accent-deep:#C65A22;  /* orange for large display text (3.6:1) */
+  --accent-ink:#A4501E;   /* orange for small text (4.6:1) */
+  --ink:#1C1C1C;          /* headings, numbers, live data */
+  --text:#3D3631;         /* body */
+  --muted:#75604F;        /* captions */
+  --history:#B9A897;      /* history segments */
+  --brown:#2A211B;
+  --line:rgba(28,28,28,.12);
+  --scrim:rgba(251,249,246,.86);
+  --alert:#C43C2A;        /* semantic: anomaly */
+  --room-a:#EE8640; --room-b:#2A211B; --room-c:#5D6C7B;
 
   --f-display:'Big Shoulders Display','Arial Narrow','Roboto Condensed',sans-serif;
   --f-body:'Instrument Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
@@ -37,39 +42,39 @@
 html{scroll-behavior:smooth}
 @media (prefers-reduced-motion: reduce){ html{scroll-behavior:auto} }
 body{
-  background:var(--asphalt); color:var(--fog);
+  background:var(--bg); color:var(--text);
   font-family:var(--f-body); font-size:16px; line-height:1.6;
   -webkit-font-smoothing:antialiased; overflow-x:hidden;
 }
 a{color:inherit}
-:focus-visible{outline:2px solid var(--sodium); outline-offset:3px; border-radius:2px}
-::selection{background:var(--sodium); color:var(--asphalt)}
+:focus-visible{outline:2px solid var(--accent-ink); outline-offset:3px; border-radius:2px}
+::selection{background:var(--accent); color:var(--ink)}
 
-#city{position:fixed; inset:0; width:100%; height:100%; display:block; z-index:0; background:var(--asphalt)}
+#city{position:fixed; inset:0; width:100%; height:100%; display:block; z-index:0; background:var(--bg)}
 .vignette{position:fixed; inset:0; z-index:1; pointer-events:none;
-  background:radial-gradient(120% 90% at 50% 45%, transparent 45%, rgba(4,5,8,.7) 100%)}
+  background:radial-gradient(120% 90% at 50% 45%, transparent 50%, rgba(243,240,236,.75) 100%)}
 
 /* ---------- nav ---------- */
-body::before{content:""; position:fixed; inset:0 0 auto; height:env(safe-area-inset-top, 0px); z-index:30; background:var(--asphalt)}
+body::before{content:""; position:fixed; inset:0 0 auto; height:env(safe-area-inset-top, 0px); z-index:30; background:var(--bg)}
 .nav{
   position:fixed; top:env(safe-area-inset-top, 0px); left:0; right:0; z-index:20;
   display:flex; align-items:center; gap:24px;
   padding-block:16px; padding-left:max(var(--pad), env(safe-area-inset-left, 0px)); padding-right:max(var(--pad), env(safe-area-inset-right, 0px));
-  background:rgba(7,9,13,.82); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border-bottom:1px solid var(--line);
+  background:rgba(243,240,236,.88); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border-bottom:1px solid var(--line);
 }
 .wordmark{display:flex; align-items:center; gap:10px; text-decoration:none;
-  font-family:var(--f-display); font-weight:800; font-size:24px; letter-spacing:.04em; text-transform:uppercase; color:var(--bone)}
+  font-family:var(--f-display); font-weight:800; font-size:24px; letter-spacing:.04em; text-transform:uppercase; color:var(--ink)}
 .wordmark svg{width:22px; height:22px; flex:none}
 .nav nav{margin-left:auto}
 .nav ul{display:flex; gap:22px; list-style:none; margin:0; padding:0}
-.nav ul a{font-family:var(--f-mono); font-size:12px; letter-spacing:.12em; text-transform:uppercase; text-decoration:none; color:var(--fog)}
-.nav ul a:hover{color:var(--bone)}
+.nav ul a{font-family:var(--f-mono); font-size:12px; letter-spacing:.12em; text-transform:uppercase; text-decoration:none; color:var(--text)}
+.nav ul a:hover{color:var(--ink)}
 .btn{display:inline-flex; align-items:center; gap:10px; min-height:44px; padding:0 20px; border-radius:2px;
   font-family:var(--f-mono); font-size:13px; font-weight:500; letter-spacing:.08em; text-transform:uppercase; text-decoration:none; cursor:pointer;
-  border:1px solid var(--sodium); background:var(--sodium); color:var(--asphalt); transition:background .2s, color .2s}
-.btn:hover{background:transparent; color:var(--sodium)}
-.btn.ghost{background:transparent; color:var(--bone); border-color:var(--line)}
-.btn.ghost:hover{border-color:var(--bone)}
+  border:1px solid var(--accent); background:var(--accent); color:var(--ink); transition:background .2s, border-color .2s}
+.btn:hover{background:var(--accent-hover); border-color:var(--accent-hover)}
+.btn.ghost{background:rgba(251,249,246,.6); color:var(--ink); border-color:rgba(28,28,28,.25)}
+.btn.ghost:hover{background:var(--panel); border-color:var(--ink)}
 .nav .btn{min-height:38px; padding:0 14px; font-size:12px}
 @media (max-width:860px){ .nav ul{display:none} .nav .btn{margin-left:auto} }
 
@@ -77,24 +82,24 @@ body::before{content:""; position:fixed; inset:0 0 auto; height:env(safe-area-in
 .rail{position:fixed; right:max(20px, env(safe-area-inset-right, 0px)); top:50%; transform:translateY(-50%); z-index:15;
   list-style:none; margin:0; padding:0; display:grid; gap:14px}
 .rail a{display:flex; align-items:center; justify-content:flex-end; gap:10px; text-decoration:none;
-  font-family:var(--f-mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--dim)}
+  font-family:var(--f-mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted)}
 .rail a span{opacity:0; transition:opacity .3s}
-.rail a i{display:block; width:18px; height:1px; background:var(--dim); transition:width .3s, background .3s}
+.rail a i{display:block; width:18px; height:1px; background:var(--muted); transition:width .3s, background .3s}
 .rail a:hover span,.rail a.on span{opacity:1}
-.rail a.on{color:var(--sodium)} .rail a.on i{width:36px; background:var(--sodium)}
+.rail a.on{color:var(--accent-ink)} .rail a.on i{width:36px; background:var(--accent)}
 @media (max-width:1100px){ .rail{display:none} }
 
 /* ---------- type ---------- */
 main{position:relative; z-index:5}
-.eyebrow{font-family:var(--f-mono); font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:var(--sodium); margin:0}
-h1,h2{font-family:var(--f-display); font-weight:800; text-transform:uppercase; color:var(--bone); margin:0; line-height:.92; letter-spacing:.005em; text-wrap:balance}
+.eyebrow{font-family:var(--f-mono); font-size:12px; letter-spacing:.16em; text-transform:uppercase; color:var(--accent-ink); margin:0}
+h1,h2{font-family:var(--f-display); font-weight:800; text-transform:uppercase; color:var(--ink); margin:0; line-height:.92; letter-spacing:.005em; text-wrap:balance}
 h1{font-size:clamp(52px, 8.4vw, 132px)}
 h2{font-size:clamp(40px, 5.4vw, 84px)}
-h3{font-family:var(--f-display); font-weight:600; font-size:22px; letter-spacing:.03em; text-transform:uppercase; color:var(--bone); margin:0}
+h3{font-family:var(--f-display); font-weight:600; font-size:22px; letter-spacing:.03em; text-transform:uppercase; color:var(--ink); margin:0}
 p{margin:0; max-width:60ch}
-.lede{font-size:clamp(17px, 1.35vw, 20px); color:var(--fog); line-height:1.55}
+.lede{font-size:clamp(17px, 1.35vw, 20px); color:var(--text); line-height:1.55}
 .mono{font-family:var(--f-mono); font-variant-numeric:tabular-nums}
-.chapno{font-family:var(--f-display); font-weight:600; font-size:15px; letter-spacing:.2em; color:var(--dim)}
+.chapno{font-family:var(--f-display); font-weight:600; font-size:15px; letter-spacing:.2em; color:var(--muted)}
 
 /* ---------- sections ---------- */
 .chapter{min-height:130vh; display:flex; align-items:center;
@@ -109,85 +114,85 @@ p{margin:0; max-width:60ch}
 .hero{min-height:100vh; display:grid; grid-template-columns:minmax(0, 1.25fr) minmax(0, .75fr); align-items:end; gap:40px;
   padding-left:max(var(--pad), env(safe-area-inset-left, 0px)); padding-right:max(var(--pad), env(safe-area-inset-right, 0px));
   padding-top:calc(110px + env(safe-area-inset-top, 0px)); padding-bottom:9vh;
-  background:linear-gradient(90deg, rgba(7,9,13,.78), rgba(7,9,13,.15) 60%, rgba(7,9,13,0))}
+  background:linear-gradient(90deg, rgba(243,240,236,.92), rgba(243,240,236,.35) 60%, rgba(243,240,236,0))}
 .hero-copy{display:grid; gap:26px; min-width:0}
-.hero h1 em{font-style:normal; color:var(--sodium)}
+.hero h1 em{font-style:normal; color:var(--accent-deep)}
 .ctas{display:flex; flex-wrap:wrap; gap:12px}
 .live{min-width:0; align-self:end; background:var(--scrim); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); border:1px solid var(--line)}
 .live-head{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 16px; border-bottom:1px solid var(--line);
-  font-family:var(--f-mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--dim)}
-.pulse{display:inline-flex; align-items:center; gap:8px; color:var(--signal)}
-.pulse::before{content:""; width:7px; height:7px; border-radius:50%; background:var(--signal); box-shadow:0 0 0 0 var(--signal); animation:ping 1.6s infinite}
-@keyframes ping{0%{box-shadow:0 0 0 0 rgba(95,212,196,.6)}100%{box-shadow:0 0 0 10px rgba(95,212,196,0)}}
+  font-family:var(--f-mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted)}
+.pulse{display:inline-flex; align-items:center; gap:8px; color:var(--ink)}
+.pulse::before{content:""; width:7px; height:7px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 0 var(--accent); animation:ping 1.6s infinite}
+@keyframes ping{0%{box-shadow:0 0 0 0 rgba(245,153,88,.7)}100%{box-shadow:0 0 0 10px rgba(245,153,88,0)}}
 @media (prefers-reduced-motion: reduce){ .pulse::before{animation:none} }
 .stats{display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); border-bottom:1px solid var(--line)}
 .stats div{padding:12px 16px; display:grid; gap:2px}
 .stats div + div{border-left:1px solid var(--line)}
-.stats b{font-family:var(--f-display); font-weight:800; font-size:30px; color:var(--bone); font-variant-numeric:tabular-nums; line-height:1}
-.stats small{font-family:var(--f-mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--dim)}
+.stats b{font-family:var(--f-display); font-weight:800; font-size:30px; color:var(--ink); font-variant-numeric:tabular-nums; line-height:1}
+.stats small{font-family:var(--f-mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted)}
 .feed{list-style:none; margin:0; padding:10px 16px 14px; height:208px; overflow:hidden; display:flex; flex-direction:column; justify-content:flex-end; gap:3px;
-  font-family:var(--f-mono); font-size:12px; color:var(--fog); font-variant-numeric:tabular-nums}
+  font-family:var(--f-mono); font-size:12px; color:var(--text); font-variant-numeric:tabular-nums}
 .feed li{display:grid; grid-template-columns:7.2em 4.6em 5.4em minmax(0,1fr); gap:10px; white-space:nowrap}
 .feed li span{overflow:hidden; text-overflow:ellipsis}
-.feed .id{color:var(--bone)} .feed .ok{color:var(--signal)} .feed .warn{color:var(--alert)}
-.live-foot{padding:0 16px 12px; font-family:var(--f-mono); font-size:10.5px; color:var(--dim)}
+.feed .id{color:var(--ink)} .feed .ok{color:var(--ink)} .feed .warn{color:var(--alert)}
+.live-foot{padding:0 16px 12px; font-family:var(--f-mono); font-size:10.5px; color:var(--muted)}
 
 /* code / spec blocks */
-pre.event{margin:0; padding:16px 18px; overflow-x:auto; background:rgba(0,0,0,.35); border:1px solid var(--line);
-  font-family:var(--f-mono); font-size:13px; line-height:1.65; color:var(--fog)}
-pre.event .k{color:var(--dim)} pre.event .s{color:var(--signal)} pre.event .n{color:var(--sodium)}
+pre.event{margin:0; padding:16px 18px; overflow-x:auto; background:rgba(251,249,246,.9); border:1px solid var(--line);
+  font-family:var(--f-mono); font-size:13px; line-height:1.65; color:var(--text)}
+pre.event .k{color:var(--muted)} pre.event .s{color:var(--ink)} pre.event .n{color:var(--accent-ink)}
 .spec{list-style:none; margin:0; padding:0; display:grid; border-top:1px solid var(--line)}
 .spec li{display:grid; grid-template-columns:minmax(0, 11em) minmax(0, 1fr); gap:16px; padding:11px 0; border-bottom:1px solid var(--line); font-size:14.5px}
-.spec li b{font-family:var(--f-mono); font-weight:500; font-size:12.5px; color:var(--bone); letter-spacing:.02em}
+.spec li b{font-family:var(--f-mono); font-weight:500; font-size:12.5px; color:var(--ink); letter-spacing:.02em}
 .rooms{display:flex; flex-wrap:wrap; gap:8px}
-.room{display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border:1px solid var(--line); font-family:var(--f-mono); font-size:12.5px; color:var(--bone)}
+.room{display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border:1px solid var(--line); font-family:var(--f-mono); font-size:12.5px; color:var(--ink)}
 .room i{width:8px; height:8px; border-radius:50%}
 
 /* replay timeline */
 .timeline{display:grid; gap:8px}
-.track{position:relative; height:34px; border:1px solid var(--line); background:rgba(0,0,0,.3); overflow:hidden}
-.track .hist{position:absolute; inset:0 22% 0 0; background:repeating-linear-gradient(90deg, rgba(232,228,218,.22) 0 2px, transparent 2px 7px)}
-.track .live-seg{position:absolute; inset:0 0 0 78%; background:repeating-linear-gradient(90deg, var(--signal) 0 2px, transparent 2px 7px); opacity:.85}
-.track .seam{position:absolute; top:-4px; bottom:-4px; left:78%; width:2px; background:var(--sodium)}
-.track-labels{display:flex; justify-content:space-between; font-family:var(--f-mono); font-size:11px; color:var(--dim); letter-spacing:.06em}
+.track{position:relative; height:34px; border:1px solid var(--line); background:rgba(251,249,246,.8); overflow:hidden}
+.track .hist{position:absolute; inset:0 22% 0 0; background:repeating-linear-gradient(90deg, rgba(185,168,151,.8) 0 2px, transparent 2px 7px)}
+.track .live-seg{position:absolute; inset:0 0 0 78%; background:repeating-linear-gradient(90deg, var(--ink) 0 2px, transparent 2px 7px); opacity:.85}
+.track .seam{position:absolute; top:-4px; bottom:-4px; left:78%; width:3px; background:var(--accent)}
+.track-labels{display:flex; justify-content:space-between; font-family:var(--f-mono); font-size:11px; color:var(--muted); letter-spacing:.06em}
 
 /* alert card */
-.alert{display:grid; gap:10px; padding:16px 18px; border:1px solid rgba(255,91,77,.5); background:rgba(255,91,77,.08)}
+.alert{display:grid; gap:10px; padding:16px 18px; border:1px solid rgba(196,60,42,.45); background:rgba(196,60,42,.07)}
 .alert-top{display:flex; justify-content:space-between; gap:12px; font-family:var(--f-mono); font-size:12px; letter-spacing:.1em; text-transform:uppercase}
 .sev{color:var(--alert); display:inline-flex; align-items:center; gap:8px}
 .sev::before{content:""; width:8px; height:8px; background:var(--alert); transform:rotate(45deg)}
 .alert-body{display:flex; align-items:baseline; gap:14px; flex-wrap:wrap}
-.alert-body b{font-family:var(--f-display); font-size:44px; font-weight:800; line-height:1; color:var(--bone); font-variant-numeric:tabular-nums}
-.alert-body span{font-size:14px; color:var(--fog)}
+.alert-body b{font-family:var(--f-display); font-size:44px; font-weight:800; line-height:1; color:var(--ink); font-variant-numeric:tabular-nums}
+.alert-body span{font-size:14px; color:var(--text)}
 .rules{display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:0 20px; list-style:none; margin:0; padding:0}
 .rules li{padding:9px 0; border-bottom:1px solid var(--line); font-size:14px}
-.rules li b{display:block; font-family:var(--f-mono); font-weight:500; font-size:12px; color:var(--bone)}
+.rules li b{display:block; font-family:var(--f-mono); font-weight:500; font-size:12px; color:var(--ink)}
 
 /* launch / architecture */
 .launch{position:relative; z-index:5; padding-block:16vh 10vh;
   padding-left:max(var(--pad), env(safe-area-inset-left, 0px)); padding-right:max(var(--pad), env(safe-area-inset-right, 0px));
-  background:linear-gradient(rgba(7,9,13,0), rgba(7,9,13,.86) 18%, var(--asphalt) 60%)}
+  background:linear-gradient(rgba(243,240,236,0), rgba(243,240,236,.9) 18%, var(--bg) 60%)}
 .launch-inner{max-width:1240px; margin:0 auto; display:grid; gap:56px}
 .launch-head{display:grid; grid-template-columns:minmax(0,1fr) minmax(0, 420px); gap:40px; align-items:end}
 .pipe-wrap{overflow-x:auto; padding-bottom:4px}
 .pipe{list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(6, minmax(150px, 1fr)); min-width:920px; counter-reset:step}
 .pipe li{position:relative; padding:18px 18px 20px 0; border-top:2px solid var(--line); display:grid; gap:8px; align-content:start}
-.pipe li::before{counter-increment:step; content:counter(step, decimal-leading-zero); font-family:var(--f-mono); font-size:11px; color:var(--sodium); letter-spacing:.1em}
-.pipe li::after{content:""; position:absolute; top:-6px; left:0; width:10px; height:10px; background:var(--asphalt); border:2px solid var(--sodium); border-radius:50%}
+.pipe li::before{counter-increment:step; content:counter(step, decimal-leading-zero); font-family:var(--f-mono); font-size:11px; color:var(--accent-ink); letter-spacing:.1em}
+.pipe li::after{content:""; position:absolute; top:-6px; left:0; width:10px; height:10px; background:var(--bg); border:2px solid var(--accent); border-radius:50%}
 .pipe h3{font-size:19px}
-.pipe p{font-size:14px; color:var(--fog)}
-.pipe .tech{font-family:var(--f-mono); font-size:11.5px; color:var(--dim)}
+.pipe p{font-size:14px; color:var(--text)}
+.pipe .tech{font-family:var(--f-mono); font-size:11.5px; color:var(--muted)}
 .targets{display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); border-top:1px solid var(--line); border-bottom:1px solid var(--line)}
 .targets div{padding:22px 20px 22px 0; display:grid; gap:6px}
 .targets div + div{padding-left:20px; border-left:1px solid var(--line)}
-.targets b{font-family:var(--f-display); font-weight:800; font-size:clamp(40px, 4.4vw, 64px); line-height:.95; color:var(--bone); font-variant-numeric:tabular-nums}
-.targets small{font-size:13.5px; color:var(--fog)}
-.targets-note{font-family:var(--f-mono); font-size:11.5px; color:var(--dim); letter-spacing:.04em}
+.targets b{font-family:var(--f-display); font-weight:800; font-size:clamp(40px, 4.4vw, 64px); line-height:.95; color:var(--ink); font-variant-numeric:tabular-nums}
+.targets small{font-size:13.5px; color:var(--text)}
+.targets-note{font-family:var(--f-mono); font-size:11.5px; color:var(--muted); letter-spacing:.04em}
 .final{display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:24px; padding:34px 0; border-top:1px solid var(--line)}
 .final h2{font-size:clamp(34px, 4vw, 60px)}
-footer{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:24px; padding-top:28px; border-top:1px solid var(--line); font-size:13px; color:var(--dim)}
+footer{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:24px; padding-top:28px; border-top:1px solid var(--line); font-size:13px; color:var(--muted)}
 footer p{max-width:none}
-footer a{color:var(--fog)}
+footer a{color:var(--text)}
 
 @media (max-width:980px){
   .hero{grid-template-columns:minmax(0,1fr); align-items:start; padding-bottom:12vh}
@@ -205,6 +210,28 @@ footer a{color:var(--fog)}
   .feed li .geo{display:none}
   footer{grid-template-columns:minmax(0,1fr)}
 }
+
+/* vehicle card (live map chapter) */
+.vcard{border:1px solid var(--line); background:var(--panel)}
+.vcard-head{display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; padding:12px 16px; border-bottom:1px solid var(--line); font-size:13.5px; color:var(--text)}
+.vcard-head .mono{color:var(--ink); font-weight:500}
+.vcard-stats{display:grid; grid-template-columns:repeat(4, minmax(0,1fr))}
+.vcard-stats div{padding:12px 16px; display:grid; gap:2px}
+.vcard-stats div + div{border-left:1px solid var(--line)}
+.vcard-stats b{font-family:var(--f-display); font-weight:800; font-size:28px; line-height:1; color:var(--ink)}
+.vcard-stats small{font-family:var(--f-mono); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted)}
+/* instruction steps (incidents chapter) */
+.alert-steps{display:flex; flex-wrap:wrap; gap:6px; margin-top:4px}
+.step{font-family:var(--f-mono); font-size:11.5px; padding:4px 8px; border-radius:99px; background:var(--panel); border:1px solid var(--line); color:var(--text)}
+.step.ok{background:#E5EFDF; border-color:#BFD6B4; color:#2F6B3A}
+/* roles */
+.roles{list-style:none; margin:0; padding:0; display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:16px}
+.roles li{padding:24px; background:var(--panel); border:1px solid var(--line); border-top:3px solid var(--accent); display:grid; gap:10px; align-content:start}
+.roles p{font-size:15px; color:var(--text)}
+@media (max-width:980px){ .roles{grid-template-columns:minmax(0,1fr)} }
+@media (max-width:640px){ .vcard-stats{grid-template-columns:repeat(2, minmax(0,1fr))} .vcard-stats div:nth-child(3){border-left:0} .vcard-stats div:nth-child(n+3){border-top:1px solid var(--line)} }
+.early-note{font-size:14.5px; padding:12px 14px; background:var(--panel); border-left:3px solid var(--accent)}
+.early-note b{color:var(--ink)}
 </style>
 </head>
 <body>
@@ -213,115 +240,119 @@ footer a{color:var(--fog)}
 
 <header class="nav">
   <a class="wordmark" href="#top" aria-label="Fleetwake home">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 18 L10 6 L13 11" fill="none" stroke="#f2a03d" stroke-width="2.4"/><path d="M11 18 L16 9 L21 18" fill="none" stroke="#5fd4c4" stroke-width="2.4"/></svg>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 18 L10 6 L13 11" fill="none" stroke="#F59958" stroke-width="2.4"/><path d="M11 18 L16 9 L21 18" fill="none" stroke="#1C1C1C" stroke-width="2.4"/></svg>
     Fleetwake
   </a>
   <nav aria-label="Sections">
     <ul>
-      <li><a href="#ingest">Ingest</a></li>
-      <li><a href="#broadcast">Broadcast</a></li>
-      <li><a href="#replay">Replay</a></li>
-      <li><a href="#detect">Detect</a></li>
-      <li><a href="#launch">Architecture</a></li>
+      <li><a href="#ingest">Live map</a></li>
+      <li><a href="#broadcast">Teams</a></li>
+      <li><a href="#replay">History</a></li>
+      <li><a href="#detect">Incidents</a></li>
+      <li><a href="#launch">Who it's for</a></li>
     </ul>
   </nav>
-  <!-- Point this at the dashboard route of the React app, e.g. /dashboard -->
-  <a class="btn" href="#launch">Open dashboard</a>
+  <a class="btn" href="/dashboard/">Sign in</a>
 </header>
 
 <ol class="rail" aria-label="Chapters">
-  <li><a href="#top" data-rail="0"><span>Live</span><i></i></a></li>
-  <li><a href="#ingest" data-rail="1"><span>Ingest</span><i></i></a></li>
-  <li><a href="#broadcast" data-rail="2"><span>Broadcast</span><i></i></a></li>
-  <li><a href="#replay" data-rail="3"><span>Replay</span><i></i></a></li>
-  <li><a href="#detect" data-rail="4"><span>Detect</span><i></i></a></li>
-  <li><a href="#launch" data-rail="5"><span>Build</span><i></i></a></li>
+  <li><a href="#top" data-rail="0"><span>Overview</span><i></i></a></li>
+  <li><a href="#ingest" data-rail="1"><span>Live map</span><i></i></a></li>
+  <li><a href="#broadcast" data-rail="2"><span>Teams</span><i></i></a></li>
+  <li><a href="#replay" data-rail="3"><span>History</span><i></i></a></li>
+  <li><a href="#detect" data-rail="4"><span>Incidents</span><i></i></a></li>
+  <li><a href="#launch" data-rail="5"><span>Get started</span><i></i></a></li>
 </ol>
 
 <main>
   <section class="hero shot" id="top" data-shot="0">
     <div class="hero-copy">
-      <p class="eyebrow">Real-time fleet telemetry</p>
+      <p class="eyebrow">The control room for your fleet</p>
       <h1>Every vehicle.<br>Every second.<br><em>One live map.</em></h1>
-      <p class="lede">Fleetwake takes in GPS, speed, fuel and engine readings from every vehicle you run, keeps each event in MongoDB, and pushes only what changed to every open dashboard over Socket.IO.</p>
+      <p class="lede">See every truck, shuttle and delivery van as it moves. Fleetwake flags speeding, overheating and vehicles leaving their area the moment it happens, and lets your control room tell the driver what to do in one click.</p>
       <div class="ctas">
-        <a class="btn" href="#launch">Open the live dashboard</a>
+        <a class="btn" href="/dashboard/">Open the control room</a>
         <a class="btn ghost" href="#ingest">See how it works</a>
       </div>
     </div>
-    <aside class="live" aria-label="Simulated telemetry feed">
-      <div class="live-head"><span class="pulse">Live feed</span><span>Simulated</span></div>
+    <aside class="live" aria-label="Sample of live vehicle readings">
+      <div class="live-head"><span class="pulse">Live readings</span><span>Sample</span></div>
       <div class="stats">
         <div><b id="st-veh">0</b><small>Vehicles</small></div>
-        <div><b id="st-eps">0</b><small>Events / s</small></div>
-        <div><b id="st-alerts">0</b><small>Alerts</small></div>
+        <div><b id="st-eps">0</b><small>Readings / s</small></div>
+        <div><b id="st-alerts">0</b><small>Open incidents</small></div>
       </div>
       <ol class="feed" id="feed" aria-live="off"></ol>
-      <p class="live-foot">vehicleId · seq · speed · position (Bengaluru)</p>
+      <p class="live-foot">vehicle · reading · speed · position in Bengaluru</p>
     </aside>
   </section>
 
   <section class="chapter shot" id="ingest" data-shot="1">
     <div class="copy">
-      <div class="copy-head"><p class="eyebrow">Ingest</p><span class="chapno">01 / 04</span></div>
-      <h2>Every ping has a name, a number and a time.</h2>
-      <p>Each vehicle sends a small event about once a second. The ingest API checks it against a schema, limits how fast any one device can send, and drops repeats by vehicle and sequence number, so a flaky cellular link can't double-count a trip.</p>
-      <pre class="event" aria-label="Example telemetry event"><span class="k">{</span>
-  <span class="k">"vehicleId":</span> <span class="s">"KA01-AB-4471"</span>,
-  <span class="k">"seq":</span>       <span class="n">88213</span>,
-  <span class="k">"ts":</span>        <span class="s">"2026-11-13T06:41:07.412Z"</span>,
-  <span class="k">"type":</span>      <span class="s">"position"</span>,
-  <span class="k">"lat":</span> <span class="n">12.97194</span>, <span class="k">"lng":</span> <span class="n">77.59369</span>,
-  <span class="k">"speedKmh":</span>  <span class="n">42.6</span>, <span class="k">"fuelPct":</span> <span class="n">61</span>, <span class="k">"engineC":</span> <span class="n">88</span>
-<span class="k">}</span></pre>
+      <div class="copy-head"><p class="eyebrow">Live map</p><span class="chapno">01 / 04</span></div>
+      <h2>Every vehicle, every second.</h2>
+      <p>Each vehicle reports where it is, how fast it is going, its fuel and its engine temperature once a second. Patchy mobile signal is handled for you: repeated and out-of-order readings are cleaned up automatically, so trips and distances stay right.</p>
+      <div class="vcard" aria-label="Example vehicle">
+        <div class="vcard-head"><span class="mono">KA01-AB-4471</span><span>Arjun Gowda · North Depot truck</span></div>
+        <div class="vcard-stats">
+          <div><b>42</b><small>km/h</small></div>
+          <div><b>61%</b><small>fuel</small></div>
+          <div><b>88 °C</b><small>engine</small></div>
+          <div><b>1 s</b><small>last report</small></div>
+        </div>
+      </div>
     </div>
   </section>
 
   <section class="chapter right shot" id="broadcast" data-shot="2">
     <div class="copy">
-      <div class="copy-head"><p class="eyebrow">Broadcast</p><span class="chapno">02 / 04</span></div>
-      <h2>Each screen hears only its own fleet.</h2>
-      <p>Dashboards join Socket.IO rooms for the fleets, regions or single vehicles they care about. The server gathers changes for 250 ms and sends one compact batch per room, with only the fields that moved.</p>
-      <div class="rooms" aria-label="Example rooms">
-        <span class="room"><i style="background:var(--room-a)"></i>fleet:north-depot</span>
-        <span class="room"><i style="background:var(--room-b)"></i>fleet:airport-shuttle</span>
-        <span class="room"><i style="background:var(--room-c)"></i>vehicle:KA01-AB-4471</span>
+      <div class="copy-head"><p class="eyebrow">Teams</p><span class="chapno">02 / 04</span></div>
+      <h2>Each team sees its own fleet.</h2>
+      <p>Dispatchers watch every fleet at once. Depot and fleet managers sign in and see only their own vehicles and incidents. Every screen stays current without refreshing.</p>
+      <div class="rooms" aria-label="Example fleets">
+        <span class="room"><i style="background:var(--room-a)"></i>North Depot trucks</span>
+        <span class="room"><i style="background:var(--room-b)"></i>Airport Shuttle</span>
+        <span class="room"><i style="background:var(--room-c)"></i>City Logistics vans</span>
       </div>
       <ul class="spec">
-        <li><b>Batching</b><span>250 ms window per room, deltas only</span></li>
-        <li><b>Client throttle</b><span>Map and charts redraw at most 4 times a second</span></li>
-        <li><b>Backpressure</b><span>Slow sockets get the latest state, not a growing queue</span></li>
+        <li><b>On screen</b><span>Within a second of the vehicle reporting</span></li>
+        <li><b>Access</b><span>By fleet and by role, checked on every update</span></li>
+        <li><b>Weak connections</b><span>Screens catch up with the latest position instead of replaying a backlog</span></li>
       </ul>
     </div>
   </section>
 
   <section class="chapter shot" id="replay" data-shot="3">
     <div class="copy">
-      <div class="copy-head"><p class="eyebrow">Replay</p><span class="chapno">03 / 04</span></div>
-      <h2>This morning's route and this second's position, on one line.</h2>
-      <p>Open a vehicle and its history loads from a MongoDB time-series collection. Live events that arrive during the load are held, then merged by sequence number, so the trail has no gaps and no duplicate points.</p>
-      <div class="timeline" aria-label="History and live data joined at one point">
+      <div class="copy-head"><p class="eyebrow">History</p><span class="chapno">03 / 04</span></div>
+      <h2>The last hour and this second, on one line.</h2>
+      <p>Open any vehicle to see its speed, fuel and engine readings for the last hour, joined to what it is doing right now. When something goes wrong, you can see what led up to it.</p>
+      <div class="timeline" aria-label="The last hour joined to live readings">
         <div class="track"><span class="hist"></span><span class="live-seg"></span><span class="seam"></span></div>
-        <div class="track-labels"><span>06:00 history</span><span>seq 88190 seam</span><span>now live</span></div>
+        <div class="track-labels"><span>1 hour ago</span><span>incident</span><span>now</span></div>
       </div>
     </div>
   </section>
 
   <section class="chapter right shot" id="detect" data-shot="4">
     <div class="copy">
-      <div class="copy-head"><p class="eyebrow">Detect</p><span class="chapno">04 / 04</span></div>
+      <div class="copy-head"><p class="eyebrow">Incidents</p><span class="chapno">04 / 04</span></div>
       <h2>Trouble shows up before the phone rings.</h2>
-      <p>Rules run on every event as it arrives. When one trips, an alert goes to the rooms watching that vehicle and is saved with the readings that caused it.</p>
+      <p>Problems are caught as they happen and land in one queue, most urgent first. Send the driver an instruction in one click, see it reach their tablet and their confirmation come back, then close the incident with what happened.</p>
       <div class="alert" role="status">
         <div class="alert-top"><span class="sev">Overspeed</span><span class="mono" id="al-id">KA05-MN-2208</span></div>
         <div class="alert-body"><b id="al-speed">94 km/h</b><span>in a 60 km/h zone for 12 s, Outer Ring Road</span></div>
+        <div class="alert-steps"><span class="step done">Slow down sent</span><span class="step done">On driver's tablet</span><span class="step ok">Driver confirmed in 7 s</span></div>
       </div>
       <ul class="rules">
         <li><b>Overspeed</b>Above the zone limit for 10 s</li>
-        <li><b>Harsh braking</b>Deceleration beyond 0.4 g</li>
-        <li><b>Long idle</b>Engine on, stationary for 15 min</li>
-        <li><b>Geofence exit</b>Left the assigned depot area</li>
+        <li><b>Harsh braking</b>Sudden stops beyond 0.4 g</li>
+        <li><b>Engine overheat</b>105 °C or more for 30 s</li>
+        <li><b>Left area</b>Outside its operating area</li>
+        <li><b>Long idle</b>Engine running, not moving for 15 min</li>
+        <li><b>Not reporting</b>Went silent while driving</li>
       </ul>
+      <p class="early-note"><b>Early warnings.</b> Fleetwake also learns what is normal for each vehicle, so an engine heading for an overheat, a slow coolant leak or fuel vanishing from a parked truck is flagged before any fixed limit is crossed.</p>
     </div>
   </section>
 
@@ -329,44 +360,44 @@ footer a{color:var(--fog)}
     <div class="launch-inner">
       <div class="launch-head">
         <div style="display:grid; gap:20px">
-          <p class="eyebrow">How it is built</p>
-          <h2>From the road to the screen in six steps.</h2>
+          <p class="eyebrow">Who it's for</p>
+          <h2>Built for the people who keep fleets moving.</h2>
         </div>
-        <p class="lede">The whole path runs on the MERN stack with Socket.IO carrying live data. Vehicles are simulated by a Node script, so the platform can be load-tested without hardware.</p>
+        <p class="lede">One place for what is happening on the road, who is dealing with it, and what to fix so it happens less.</p>
       </div>
 
-      <div class="pipe-wrap">
-        <ol class="pipe">
-          <li><h3>Vehicles</h3><p>Simulated trucks and vans drive real road routes and emit events.</p><span class="tech">Node simulator</span></li>
-          <li><h3>Ingest API</h3><p>Validates each event and rate-limits each device.</p><span class="tech">Express, Zod, rate limiter</span></li>
-          <li><h3>Dedupe and batch</h3><p>Drops repeats and late events by vehicle and sequence.</p><span class="tech">In-memory buffer</span></li>
-          <li><h3>Store</h3><p>Writes events in bulk and keeps latest state per vehicle.</p><span class="tech">MongoDB time-series</span></li>
-          <li><h3>Broadcast</h3><p>Sends deltas to the rooms that subscribed.</p><span class="tech">Socket.IO rooms</span></li>
-          <li><h3>Dashboard</h3><p>Live map, charts, history and alerts.</p><span class="tech">React, MapLibre, charts</span></li>
-        </ol>
-      </div>
+      <ul class="roles">
+        <li>
+          <h3>Dispatchers</h3>
+          <p>A live queue of incidents across every fleet. Take one, instruct or call the driver, and close it with the outcome. Nothing falls through the cracks.</p>
+        </li>
+        <li>
+          <h3>Fleet managers</h3>
+          <p>Your vehicles and drivers only. See which drivers need coaching and which vehicles need a check, and book it from the same screen.</p>
+        </li>
+        <li>
+          <h3>Operations leads</h3>
+          <p>Incidents per 100 km, how fast the control room responds, where incidents cluster, and how each fleet compares.</p>
+        </li>
+      </ul>
 
-      <div style="display:grid; gap:12px">
-        <div class="targets">
-          <div><b>2,000</b><small>Simulated vehicles at 1 Hz</small></div>
-          <div><b>&lt;300<span style="font-size:.5em"> ms</span></b><small>Vehicle event to dashboard</small></div>
-          <div><b>50</b><small>Dashboards connected at once</small></div>
-          <div><b>0</b><small>Duplicate points after replay</small></div>
-        </div>
-        <p class="targets-note">Load-test goals for the hackathon build. Replace with measured results once the stress test runs.</p>
+      <div class="targets">
+        <div><b>2,000</b><small>Vehicles reporting every second</small></div>
+        <div><b>&lt;0.5<span style="font-size:.5em"> s</span></b><small>From the vehicle to every screen</small></div>
+        <div><b>50</b><small>Control-room screens at once</small></div>
+        <div><b>1 click</b><small>From an incident to the driver</small></div>
       </div>
 
       <div class="final">
-        <h2>Watch your fleet move.</h2>
+        <h2>See your fleet move.</h2>
         <div class="ctas">
-          <a class="btn" href="#top">Open the live dashboard</a>
-          <a class="btn ghost" href="#ingest">Read the architecture</a>
+          <a class="btn" href="/dashboard/">Open the control room</a>
         </div>
       </div>
 
       <footer>
-        <p>Fleetwake is a MERNIFY hackathon project: a real-time telemetry platform for vehicle fleets.</p>
-        <p>3D scene built with <a href="https://threejs.org" target="_blank" rel="noopener">Three.js</a> (MIT). Scroll-driven storytelling inspired by <a href="https://github.com/MengTo/kage" target="_blank" rel="noopener">Kage by Meng To</a>; no code or artwork reused. Fonts from Google Fonts (OFL).</p>
+        <p>© 2026 Fleetwake. Live fleet monitoring for logistics operators.</p>
+        <p>Map data © OpenStreetMap contributors. 3D scene built with <a href="https://threejs.org" target="_blank" rel="noopener">Three.js</a>.</p>
       </footer>
     </div>
   </section>
@@ -377,7 +408,7 @@ footer a{color:var(--fog)}
 (function(){
   'use strict';
   var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var C = { sodium:0xf2a03d, signal:0x5fd4c4, alert:0xff5b4d, roomA:0xf2a03d, roomB:0x5fd4c4, roomC:0xb59cff, asphalt:0x07090d };
+  var C = { accent:0xf59958, signal:0x1c1c1c, alert:0xc43c2a, roomA:0xee8640, roomB:0x2a211b, roomC:0x5d6c7b, bg:0xf3f0ec, history:0xb9a897 };
 
   /* ------------------------------------------------ feed + counters (works even without WebGL) */
   var feedEl = document.getElementById('feed');
@@ -403,14 +434,14 @@ footer a{color:var(--fog)}
   try { renderer = window.THREE && new THREE.WebGLRenderer({ canvas:canvas, antialias:true, powerPreference:'high-performance' }); } catch(e){ renderer = null; }
   if (!renderer){ startFallbackFeed(); return; }
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  renderer.setClearColor(C.asphalt, 1);
+  renderer.setClearColor(C.bg, 1);
 
   var scene = new THREE.Scene();
-  scene.fog = new THREE.FogExp2(C.asphalt, 0.0062);
+  scene.fog = new THREE.FogExp2(C.bg, 0.0052);
   var camera = new THREE.PerspectiveCamera(45, 1, 0.3, 900);
-  scene.add(new THREE.HemisphereLight(0x9fb2cc, 0x0a0c10, 0.75));
-  var dl = new THREE.DirectionalLight(0xffd7a0, 0.55); dl.position.set(-40, 80, 30); scene.add(dl);
-  var dl2 = new THREE.DirectionalLight(0x7f9fd0, 0.25); dl2.position.set(50, 40, -60); scene.add(dl2);
+  scene.add(new THREE.HemisphereLight(0xfffaf3, 0xb8a996, 0.7));
+  var dl = new THREE.DirectionalLight(0xfff0e0, 0.55); dl.position.set(-40, 80, 30); scene.add(dl);
+  var dl2 = new THREE.DirectionalLight(0xd9c8b4, 0.2); dl2.position.set(50, 40, -60); scene.add(dl2);
 
   function glowTex(){
     var c = document.createElement('canvas'); c.width = c.height = 64;
@@ -426,9 +457,9 @@ footer a{color:var(--fog)}
   function mulberry(a){ return function(){ a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 
   // ground: dark plane + faint survey grid
-  var ground = new THREE.Mesh(new THREE.PlaneGeometry(1200, 1200), new THREE.MeshLambertMaterial({ color:0x0a0d12 }));
+  var ground = new THREE.Mesh(new THREE.PlaneGeometry(1200, 1200), new THREE.MeshLambertMaterial({ color:0xddd3c6 }));
   ground.rotation.x = -Math.PI/2; ground.position.y = -0.05; scene.add(ground);
-  var grid = new THREE.GridHelper(800, 80, 0x18202a, 0x10161e); scene.add(grid);
+  var grid = new THREE.GridHelper(800, 80, 0xcdc1b2, 0xd6cbbd); scene.add(grid);
 
   // roads
   var V = function(x,z){ return new THREE.Vector3(x,0,z); };
@@ -454,22 +485,22 @@ footer a{color:var(--fog)}
       if (i<N){ var a=i*2; idx.push(a, a+1, a+2, a+1, a+3, a+2); }
     }
     var g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos,3)); g.setIndex(idx); g.computeVertexNormals();
-    scene.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color:0x161b23, side:THREE.DoubleSide })));
+    scene.add(new THREE.Mesh(g, new THREE.MeshLambertMaterial({ color:0x8f8376, side:THREE.DoubleSide })));
     function offsetLine(off, mat, y){
       var p = [];
       for (var i=0;i<=N;i++){ var u=i/N; rd.curve.getPointAt(u,tmpP); rd.curve.getTangentAt(u,tmpT); tmpN.crossVectors(tmpT,UP).normalize(); p.push(new THREE.Vector3(tmpP.x+tmpN.x*off, y, tmpP.z+tmpN.z*off)); }
       var l = new THREE.Line(new THREE.BufferGeometry().setFromPoints(p), mat); if (mat.isLineDashedMaterial) l.computeLineDistances(); scene.add(l);
     }
-    var edge = new THREE.LineBasicMaterial({ color:0x6b5a3e, transparent:true, opacity:.7 });
+    var edge = new THREE.LineBasicMaterial({ color:0xf59958, transparent:true, opacity:.85 });
     offsetLine(rd.width/2, edge, .05); offsetLine(-rd.width/2, edge, .05);
-    var dash = new THREE.LineDashedMaterial({ color:0xc9b48a, dashSize:3, gapSize:5, transparent:true, opacity:.45 });
+    var dash = new THREE.LineDashedMaterial({ color:0xffffff, dashSize:3, gapSize:5, transparent:true, opacity:.45 });
     for (var k=1;k<rd.lanes;k++) offsetLine(-rd.width/2 + k*rd.width/rd.lanes, dash, .06);
   });
 
   // city blocks: low dark buildings set back from the roads
   (function(){
     var geo = new THREE.BoxGeometry(1,1,1); geo.translate(0,.5,0);
-    var count = 240, mesh = new THREE.InstancedMesh(geo, new THREE.MeshLambertMaterial({ color:0x121821 }), count), d = new THREE.Object3D();
+    var count = 240, mesh = new THREE.InstancedMesh(geo, new THREE.MeshLambertMaterial({ color:0xe2d9cd }), count), d = new THREE.Object3D();
     var rnd = mulberry(7), n = 0;
     while (n < count){
       var x = (rnd()-.5)*360, z = (rnd()-.5)*360;
@@ -492,21 +523,21 @@ footer a{color:var(--fog)}
       });
     }
     var pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.Float32BufferAttribute(poles,3));
-    scene.add(new THREE.LineSegments(pg, new THREE.LineBasicMaterial({ color:0x4a505a })));
+    scene.add(new THREE.LineSegments(pg, new THREE.LineBasicMaterial({ color:0x9b8c7d })));
     var hg = new THREE.BufferGeometry(); hg.setAttribute('position', new THREE.Float32BufferAttribute(heads,3));
-    scene.add(new THREE.Points(hg, pointsMat(1.6, 0xffc67a, { opacity:.95 })));
+    scene.add(new THREE.Points(hg, pointsMat(1.4, 0xf59958, { opacity:.95, blending:THREE.NormalBlending })));
   })();
 
   /* ------------------------------------------------ vehicle models */
   // Reflections: a small studio-at-night environment so painted bodies and glass pick up highlights.
   (function(){
     var pm = new THREE.PMREMGenerator(renderer), env = new THREE.Scene();
-    var sg = new THREE.SphereGeometry(50, 32, 16), sc = [], top = new THREE.Color(0x3a4c66), hor = new THREE.Color(0x8a7458), bot = new THREE.Color(0x07080b), c = new THREE.Color();
+    var sg = new THREE.SphereGeometry(50, 32, 16), sc = [], top = new THREE.Color(0xcfc8bf), hor = new THREE.Color(0xb9a48e), bot = new THREE.Color(0x4a3f36), c = new THREE.Color();
     for (var i=0;i<sg.attributes.position.count;i++){ var y = sg.attributes.position.getY(i)/50; if (y>0) c.copy(hor).lerp(top, Math.pow(y,.6)); else c.copy(hor).lerp(bot, Math.pow(-y,.4)); sc.push(c.r,c.g,c.b); }
     sg.setAttribute('color', new THREE.Float32BufferAttribute(sc,3));
     env.add(new THREE.Mesh(sg, new THREE.MeshBasicMaterial({ vertexColors:true, side:THREE.BackSide })));
     [[0,40,0,60,1,8],[-30,25,20,4,30,1],[30,22,-10,4,24,1]].forEach(function(b){
-      var m = new THREE.Mesh(new THREE.BoxGeometry(b[3],b[4],b[5]), new THREE.MeshBasicMaterial({ color:0xfff2dc })); m.position.set(b[0],b[1],b[2]); m.lookAt(0,0,0); env.add(m);
+      var m = new THREE.Mesh(new THREE.BoxGeometry(b[3],b[4],b[5]), new THREE.MeshBasicMaterial({ color:0xfff6ea })); m.position.set(b[0],b[1],b[2]); m.lookAt(0,0,0); env.add(m);
     });
     scene.environment = pm.fromScene(env, 0.03).texture;
   })();
@@ -565,9 +596,13 @@ footer a{color:var(--fog)}
       s.quadraticCurveTo(-1.3,1.33,-.5,1.39); s.quadraticCurveTo(.15,1.41,.7,.97);
       s.quadraticCurveTo(1.7,.83,2.36,.66); s.quadraticCurveTo(2.52,.6,2.5,.44); s.quadraticCurveTo(2.46,.28,2.3,.28);
     }, 1.92, .2)]),
-    detail: merge([
+    glass: merge([
       profile(function(s){ s.moveTo(-1.95,.94); s.quadraticCurveTo(-1.2,1.3,-.5,1.345); s.quadraticCurveTo(.05,1.365,.62,.96); s.lineTo(-1.95,.94); }, 1.96, .14, 0, GLASS),
-      profile(function(s){ s.moveTo(-2.06,.96); s.quadraticCurveTo(-1.3,1.37,-.5,1.43); s.quadraticCurveTo(.15,1.455,.76,.98); s.lineTo(-2.06,.96); }, 1.6, .1, 0, GLASS),
+      // Glass roof from tail to windscreen. It sits ~0.05 above the body's bevelled surface
+      // (the body bevel pushes its outline out by 0.16), so it is visible from every angle.
+      profile(function(s){ s.moveTo(-2.1,1.13); s.quadraticCurveTo(-1.3,1.53,-.5,1.6); s.quadraticCurveTo(.2,1.62,.9,1.08); s.lineTo(.84,1.04); s.quadraticCurveTo(.15,1.56,-.5,1.55); s.quadraticCurveTo(-1.3,1.48,-2.1,1.08); s.lineTo(-2.1,1.13); }, 1.5, .02, 0, GLASS)
+    ]),
+    detail: merge([
       box(1.7,.12,3.0, 0,.3,0, TRIM),
       box(1.2,.14,.08, 0,.38,2.6, TRIM),
       box(1.3,.1,.08, 0,.36,-2.56, TRIM)
@@ -580,8 +615,11 @@ footer a{color:var(--fog)}
       s.lineTo(-.2,1.76); s.quadraticCurveTo(.3,1.76,.9,1.22); s.quadraticCurveTo(1.8,1.12,2.36,1.0);
       s.quadraticCurveTo(2.5,.92,2.48,.6); s.quadraticCurveTo(2.46,.38,2.3,.38);
     }, 2.0, .16)]),
-    detail: merge([
+    glass: merge([
       profile(function(s){ s.moveTo(-2.25,1.24); s.lineTo(-2.2,1.62); s.lineTo(-.2,1.69); s.quadraticCurveTo(.2,1.69,.82,1.24); s.lineTo(-2.25,1.24); }, 2.04, .13, 0, GLASS),
+      profile(function(s){ s.moveTo(-.25,1.93); s.quadraticCurveTo(.36,1.93,1.03,1.3); s.lineTo(.97,1.27); s.quadraticCurveTo(.31,1.88,-.25,1.88); s.lineTo(-.25,1.93); }, 1.7, .02, 0, GLASS)
+    ]),
+    detail: merge([
       box(1.8,.22,3.2, 0,.4,0, TRIM),
       box(.08,.06,2.6, .7,1.86,-.6, TRIM), box(.08,.06,2.6, -.7,1.86,-.6, TRIM)
     ].concat(axle(.46,.3,.88,[1.5,-1.45],6))),
@@ -594,16 +632,21 @@ footer a{color:var(--fog)}
     }, 2.35, .14)]),
     detail: merge([
       rbox(2.5,2.9,6.6,.18, 0,.75,-.9, [.8,.82,.85]),
-      profile(function(s){ s.moveTo(3.5,1.95); s.lineTo(3.6,2.7); s.quadraticCurveTo(4.2,2.7,4.3,2.1); s.lineTo(4.4,1.95); s.lineTo(3.5,1.95); }, 2.4, .1, 0, GLASS),
       box(2.0,.3,8.6, 0,.62,-.2, TRIM),
       box(2.4,.4,.2, 0,.6,4.66, TRIM)
     ].concat(axle(.52,.38,1.02,[3.6,-2.2,-3.35],6))),
+    glass: merge([
+      profile(function(s){ s.moveTo(3.5,1.95); s.lineTo(3.6,2.7); s.quadraticCurveTo(4.2,2.7,4.3,2.1); s.lineTo(4.4,1.95); s.lineTo(3.5,1.95); }, 2.4, .1, 0, GLASS),
+      profile(function(s){ s.moveTo(3.72,3.06); s.quadraticCurveTo(4.45,3.06,4.6,2.25); s.lineTo(4.66,2.0); s.lineTo(4.58,2.0); s.lineTo(4.53,2.25); s.quadraticCurveTo(4.38,2.99,3.72,2.99); s.lineTo(3.72,3.06); }, 2.0, .02, 0, GLASS)
+    ]),
     lamps: merge([box(.36,.12,.05, .82,1.15,4.66, HEAD), box(.36,.12,.05, -.82,1.15,4.66, HEAD), box(.12,.3,.05, 1.05,1.0,-4.24, TAIL), box(.12,.3,.05, -1.05,1.0,-4.24, TAIL), box(2.2,.05,.05, 0,3.62,-4.24, AMBER)]) };
 
   MODELS.bus = { speed:[6,8], paint: merge([rbox(2.5,2.85,11.2,.45, 0,.45,0)]),
-    detail: merge([
+    glass: merge([
       box(2.56,1.0,9.2, 0,2.05,-.6, GLASS),
-      box(2.3,1.35,.06, 0,1.95,5.62, GLASS),
+      box(2.3,1.35,.06, 0,1.95,5.62, GLASS)
+    ]),
+    detail: merge([
       box(2.0,.22,7.0, 0,3.4,-.5, TRIM),
       box(2.4,.3,11.0, 0,.5,0, TRIM)
     ].concat(axle(.52,.34,1.05,[3.9,-3.6],6))),
@@ -624,8 +667,8 @@ footer a{color:var(--fog)}
     ]),
     lamps: merge([box(.14,.1,.04, 0,1.0,.74, HEAD), box(.14,.05,.04, 0,.95,-.74, TAIL)]) };
 
-  var PAINTS = [0xd9dde2, 0xc4c9cf, 0xe8e9ea, 0x9aa3ad, 0x2a2e35, 0x1d3f66, 0x8c2420, 0x55687a, 0xb8c96a];
-  var BUS_PAINTS = [0x2f6db3, 0xc23b2e, 0xd9a330], TRUCK_PAINTS = [0xe6e6e2, 0x2c4a7a, 0x9b2a24, 0x3f5d4a];
+  var PAINTS = [0xd9dde2, 0xc4c9cf, 0xffffff, 0x9aa3ad, 0x2a2e35, 0x5d6c7b, 0xf59958, 0x55687a, 0xe9dfcc];
+  var BUS_PAINTS = [0xf59958, 0xf4de60, 0x2a211b], TRUCK_PAINTS = [0xffffff, 0x2a211b, 0xf59958, 0x5d6c7b];
 
   // vehicles
   var NV = window.innerWidth < 700 ? 70 : 110;
@@ -652,15 +695,18 @@ footer a{color:var(--fog)}
   stVeh.textContent = NV.toLocaleString('en-IN');
 
   // three InstancedMeshes per model type, all sharing each vehicle's transform
-  var paintMat = new THREE.MeshStandardMaterial({ color:0xffffff, metalness:.6, roughness:.26, envMapIntensity:1.2 });
+  var paintMat = new THREE.MeshStandardMaterial({ color:0xffffff, metalness:.45, roughness:.32, envMapIntensity:.9 });
   var detailMat = new THREE.MeshStandardMaterial({ vertexColors:true, metalness:.5, roughness:.22, envMapIntensity:1.0 });
+  // Glass gets its own layer: dark tint and only a soft reflection, so windows read as glass in
+  // daylight instead of mirroring the bright sky like the chrome trim does.
+  var glassMat = new THREE.MeshStandardMaterial({ color:0x1e252d, metalness:.15, roughness:.12, envMapIntensity:.35 });
   var lampMat = new THREE.MeshBasicMaterial({ vertexColors:true });
   var groups = {};
   Object.keys(MODELS).forEach(function(t){
     var list = vehicles.filter(function(v){ return v.type===t; });
     if (!list.length) return;
     function inst(geo, mat){ var im = new THREE.InstancedMesh(geo, mat, list.length); im.instanceMatrix.setUsage(THREE.DynamicDrawUsage); im.frustumCulled = false; scene.add(im); return im; }
-    var g = { paint:inst(MODELS[t].paint, paintMat), detail:inst(MODELS[t].detail, detailMat), lamps:inst(MODELS[t].lamps, lampMat) };
+    var g = { paint:inst(MODELS[t].paint, paintMat), detail:inst(MODELS[t].detail, detailMat), lamps:inst(MODELS[t].lamps, lampMat), glass:MODELS[t].glass ? inst(MODELS[t].glass, glassMat) : null };
     list.forEach(function(v, k){ v.slot = k; g.paint.setColorAt(k, v.paint); });
     groups[t] = g;
   });
@@ -670,14 +716,14 @@ footer a{color:var(--fog)}
   alertRing.rotation.x = -Math.PI/2; scene.add(alertRing);
   var alertRing2 = alertRing.clone(); alertRing2.material = alertRing.material.clone(); scene.add(alertRing2);
 
-  // trails (replay chapter): history in pale bone, the newest stretch in live teal
+  // trails (replay chapter): history in beige fading in from the ground, the newest stretch in live ink
   var TRAIL_N = 140, trailVehicles = [], trailMat = new THREE.LineBasicMaterial({ vertexColors:true, transparent:true, opacity:0, depthWrite:false });
   for (i=0;i<14;i++){
     var tv = vehicles[(i*11+1)%NV]; if (tv === flagged) continue;
     var g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(TRAIL_N*3),3));
     var cols = new Float32Array(TRAIL_N*3);
-    for (var k=0;k<TRAIL_N;k++){ var f = k/(TRAIL_N-1), live = f > .82, c = new THREE.Color(live ? C.signal : 0xe8e4da); c.multiplyScalar(live ? 1 : .15 + f*.6); cols.set([c.r,c.g,c.b], k*3); }
+    for (var k=0;k<TRAIL_N;k++){ var f = k/(TRAIL_N-1), live = f > .82, c = new THREE.Color(live ? C.signal : C.history); if (!live) c.lerp(new THREE.Color(C.bg), .75 - f*.75); cols.set([c.r,c.g,c.b], k*3); }
     g.setAttribute('color', new THREE.Float32BufferAttribute(cols,3));
     var line = new THREE.Line(g, trailMat); line.frustumCulled = false; scene.add(line);
     tv.trail = { buf:[], line:line, acc:0 }; trailVehicles.push(tv);
@@ -750,7 +796,7 @@ footer a{color:var(--fog)}
       v.kmh = v.speed*4 + Math.sin(el*1.3 + i)*1.5;
       dummy.position.copy(v.pos); dummy.lookAt(tmpP.copy(v.pos).add(v.fwd));
       if (v.type==='bike') dummy.rotateZ(Math.sin(el*.8 + i)*.06);
-      dummy.updateMatrix(); g.paint.setMatrixAt(v.slot, dummy.matrix); g.detail.setMatrixAt(v.slot, dummy.matrix); g.lamps.setMatrixAt(v.slot, dummy.matrix);
+      dummy.updateMatrix(); g.paint.setMatrixAt(v.slot, dummy.matrix); g.detail.setMatrixAt(v.slot, dummy.matrix); g.lamps.setMatrixAt(v.slot, dummy.matrix); if (g.glass) g.glass.setMatrixAt(v.slot, dummy.matrix);
       tmpC.copy(v.paint).lerp(ROOMS[v.room], wRooms*.9);
       if (v===flagged) tmpC.lerp(ALERT, wDetect);
       g.paint.setColorAt(v.slot, tmpC);
@@ -759,7 +805,7 @@ footer a{color:var(--fog)}
         if (v.trail.acc > .09){ v.trail.acc = 0; v.trail.buf.push(v.pos.x, v.pos.z); if (v.trail.buf.length > TRAIL_N*2) v.trail.buf.splice(0, 2); }
       }
     }
-    Object.keys(groups).forEach(function(t){ var g = groups[t]; g.paint.instanceMatrix.needsUpdate = g.detail.instanceMatrix.needsUpdate = g.lamps.instanceMatrix.needsUpdate = true; if (g.paint.instanceColor) g.paint.instanceColor.needsUpdate = true; });
+    Object.keys(groups).forEach(function(t){ var g = groups[t]; g.paint.instanceMatrix.needsUpdate = g.detail.instanceMatrix.needsUpdate = g.lamps.instanceMatrix.needsUpdate = true; if (g.glass) g.glass.instanceMatrix.needsUpdate = true; if (g.paint.instanceColor) g.paint.instanceColor.needsUpdate = true; });
 
     trailMat.opacity = wReplay * .95;
     if (wReplay > .01) trailVehicles.forEach(function(v){
