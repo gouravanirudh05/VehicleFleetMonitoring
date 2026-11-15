@@ -1,6 +1,51 @@
 # Fleetwake
 
-Fleetwake is the control room for a Bengaluru logistics operator that runs three fleets:
+**A real-time control room for vehicle fleets.** Every truck, shuttle and delivery van streams its position, speed, fuel and engine temperature once a second. Fleetwake checks and stores every reading, raises incidents the moment something goes wrong (or is about to), lets a dispatcher instruct the driver in one click, and keeps every connected screen up to date in well under half a second.
+
+Built with **MongoDB · Express · React · Node.js · Socket.IO** for the MERNIFY hackathon, *High-Throughput Streams & Telemetry* track.
+
+![Control room: incident queue, live map and vehicle list](docs/screenshots/03-control-room.jpg)
+
+| | |
+| --- | --- |
+| **Scale tested** | 2,000 vehicles at 1 reading/s, 50 dashboards connected |
+| **Vehicle to screen** | 238 ms median, 359 ms p95 |
+| **Readings lost or double-counted** | 0 (all 119,457 saved; 1,777 duplicate and late readings dropped as designed) |
+| **Early warnings** | Overheats forecast a median 78 s before the fixed rule; coolant leaks and fuel theft that no fixed rule can see |
+| **Tests** | 35 unit tests, a load test, and an ML evaluation against ground truth |
+
+---
+
+## Contents
+
+1. [The problem](#the-problem)
+2. [What Fleetwake does](#what-fleetwake-does)
+3. [Screenshots](#screenshots)
+4. [Architecture](#architecture)
+5. [Tech stack](#tech-stack)
+6. [Data generation and ingestion](#data-generation-and-ingestion)
+7. [Real-time communication](#real-time-communication)
+8. [History and live data without duplicates](#history-and-live-data-without-duplicates)
+9. [Incidents and driver instructions](#incidents-and-driver-instructions)
+10. [Early warnings (machine learning)](#early-warnings-machine-learning)
+11. [Performance](#performance)
+12. [Getting started](#getting-started)
+13. [Testing](#testing)
+14. [Deployment](#deployment)
+15. [Demo walkthrough](#demo-walkthrough)
+16. [Requirements checklist](#requirements-checklist)
+17. [Project structure](#project-structure)
+18. [Credits](#credits)
+
+The full design document, with more diagrams, the data model and the API reference, is in **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
+
+---
+
+## The problem
+
+Fleets produce a continuous, high-frequency stream of telemetry. A logistics operator needs to see every vehicle live, catch unsafe or failing vehicles while there is still time to act, and give each team only the fleet it is responsible for, without screens lagging, freezing or showing duplicated or out-of-order data.
+
+Fleetwake is the control room for a Bengaluru logistics company with three fleets:
 
 | Fleet | What it does | Vehicles |
 | --- | --- | --- |
@@ -8,308 +53,354 @@ Fleetwake is the control room for a Bengaluru logistics operator that runs three
 | Airport Shuttle | Buses and cabs carrying passengers and crew to Kempegowda Airport | Buses, SUVs, sedans |
 | City Logistics | Last-mile parcel deliveries across the city | Vans, bikes, sedans |
 
-Every vehicle reports GPS, speed, fuel and engine temperature once a second. Two kinds of people watch:
-- **Dispatchers** see all three fleets and handle incidents as they happen: speeding, harsh braking, overheating, vehicles leaving their area, and long idling.
+Two roles use it:
+- **Dispatchers** watch every fleet and work incidents as they happen.
 - **Fleet managers** see only their own fleet.
 
-A second matters because an overspeeding truck or an overheating shuttle has to be caught while it's still happening, not in tomorrow's report.
+The vehicles are simulated (the brief allows it), driving real Bengaluru roads.
 
-Built for the MERNIFY hackathon, High-Throughput Streams & Telemetry track. The vehicles are simulated, driving real Bengaluru roads.
+## What Fleetwake does
 
-**Stack:** MongoDB · Express 5 · React 19 · Node.js 24 · Socket.IO 4
+**Live operations: the Control room**
+- Live map of every vehicle, coloured by fleet, with speed zones, each fleet's operating area, and a ring on any vehicle with an active incident.
+- A **Needs attention** queue: open incidents, most urgent first, each with its driver and a one-click suggested instruction.
+- Open any vehicle to see its driver, its last 5, 15 or 60 minutes joined seamlessly to its live readings, its open incidents, and what its learned model considers normal.
 
-## The dashboard
+**Incidents and driver instructions**
+- Nine detectors feed one incident queue.
+  - Six fixed rules: overspeed, harsh braking, engine overheat, long idle, left area, not reporting.
+  - Three learned early warnings: overheat forecast, unusual engine temperature, unexplained fuel loss.
+- Repeats merge into one incident and escalate; incidents know when their condition has stopped; quiet ones close themselves.
+- Dispatchers take ownership, **send the driver an instruction** (it reaches the vehicle in about 0.35 s, and the driver's confirmation comes back), log calls, add notes, and resolve with an outcome. Resolving can also book driver coaching or a maintenance check.
 
-Each page answers one question and offers the actions that go with it.
+**Reports**
+- Incidents per 100 km, time to take ownership and to resolve, and how incidents were closed.
+- **Drivers to follow up**, with *Book coaching* and *Book check* buttons, plus a follow-up list to tick off.
+- A **heatmap** of where incidents happen, incidents over time, and the fleets compared.
 
-| Page | Question it answers | What you can do there |
-| --- | --- | --- |
-| **Control room** | What needs attention right now, and where is everything? | Work the **Needs attention** queue: open incidents, most urgent first, split into *happening now* and *stopped, needs review*. Take an incident, send the driver an instruction with one click, log a call, add notes, and resolve with an outcome. The live map rings vehicles with active incidents. Open a vehicle to see its driver, its last 5, 15 or 60 minutes joined to live readings, its open incidents, and to book coaching or a maintenance check. |
-| **Reports** | Who needs coaching or a check, and how well are we responding? | Open incidents and how many are unassigned; median time to take ownership and to resolve; incidents per 100 km. **Drivers to follow up**, with *Book coaching* and *Book check* buttons; the list of booked follow-ups with *Mark done*. A **heatmap** of where incidents happen, filterable by type; incidents over time; how incidents were closed (with a hint when false alarms run high); fleets compared. |
-| **System health** (dispatchers only) | Is the platform working? | A plain status (*All systems normal*, *Degraded* or *Problem*) and six checks: database, vehicle data, data quality, delivery to screens, storage, vehicles reporting. Each failing check says what to do. Charts of readings per second and delivery time, rejected readings by reason, every connected screen by fleet, and the last capacity test. |
+**System health** (dispatchers)
+- A plain status (*All systems normal / Degraded / Problem*) built from seven checks, each saying what to do when it fails.
+- Throughput and delivery-time charts, rejected readings by reason, and every connected screen by fleet.
 
-Fleet managers (`north`, `airport`) see only their own fleet everywhere: the map, the queue, reports and the API. To see the server keeping screens apart, sign in as `admin` and as `north` in two windows, then open **System health → Connected screens** as `admin`.
+**Built for unreliable, high-volume input**
+- Every reading carries a vehicle id, a sequence number and a timestamp, so duplicates and late arrivals are dropped and counted, never double-counted.
+- Schema validation, per-IP and per-device rate limits, device keys, and backpressure (503 + `Retry-After`).
+- JWT logins with fleet-scoped access, enforced on every API call and every Socket.IO room.
 
-## Working an incident
+## Screenshots
 
-Repeated alerts don't flood the queue. Each vehicle has at most one unresolved incident per kind of problem (`server/src/pipeline/incidents.js`):
-
-1. **Opened** when a rule trips. If it trips again before anyone resolves it, the count goes up (*3×*) and after three repeats a warning becomes critical.
-2. **Stopped, needs review** when the condition ends on its own, for example back under the limit. A non-critical incident that stops and that nobody took closes itself after 10 minutes with the outcome *Cleared on its own*. Critical ones always wait for a person.
-3. **Instruct the driver:** *Slow down*, *Return to route*, *Pull over and switch off*, *Resume trip* or *Call control room*. The instruction is queued and goes down to the vehicle in the response to its next upload, normally within a second. The driver's tablet confirms through `POST /api/devices/ack`.
-   - If an instruction is not delivered in 2 minutes it expires.
-   - If it is not confirmed within 60 s, the timeline says to call the driver.
-   - The simulated drivers confirm after 3 to 9 seconds and then actually comply: they slow down, head back to their route, or pull over and switch off. About one in twelve never answers.
-4. **Resolved** with an outcome (driver corrected it, assistance sent, false alarm, escalated, cleared on its own, other) and an optional note. Resolving can also book driver coaching or a maintenance check.
-
-Every step lands in the incident's timeline with who did it and when. Incident changes reach every screen following that fleet within 250 ms.
-
-## Early warnings (machine learning)
-
-Fixed thresholds only fire once something is already wrong, and they can't tell a hot-running truck from a failing one. So every vehicle also gets its own small model that learns, continuously and on the server, what is normal *for that vehicle* (`server/src/pipeline/ml.js`). It needs no external service and no API key.
-
-| Detector | What it learns | What it catches | Example incident text |
-| --- | --- | --- | --- |
-| **Overheat forecast** | The engine's expected temperature at each speed. It fits a linear trend to the *unexplained* heat over the last 90 s. | An engine heading for 105 °C, minutes before the fixed overheat rule can fire | "Engine 97 °C and rising 6.2 °C/min: about 1 min to 105 °C" |
-| **Unusual engine temperature** | A per-vehicle baseline `engine ≈ a + b·speed` (exponentially weighted least squares, ~30 min memory) and the vehicle's own spread around it | A slow coolant leak that tops out around 100 °C and never trips the fixed rule | "Engine 101 °C, 9 °C hotter than this vehicle usually runs at 42 km/h (normal 92 °C)" |
-| **Unexplained fuel loss** | The vehicle's own fuel use per km | Fuel that the distance driven doesn't explain: siphoning while parked, or a leak | "Fuel fell 7.9% in 2 min while parked; the distance explains about 0.0%" |
-
-Each early warning becomes an ordinary incident, labelled *Early warning*. It is worked like any other, with a suggested instruction: *Pull over and switch off* for a forecast overheat, *Call control room* for the other two. The incident panel shows the evidence ("its engine normally runs at 92 °C at this speed, ±0.5 °C"), and the vehicle panel shows what the model has learned so far.
-
-Safeguards that matter in practice:
-- **Warm-up.** Nothing is judged until a vehicle has about 3 minutes of readings.
-- **Slow drift can't become normal.** The model only learns from readings within two standard deviations of its current normal. Without this, a slow leak would widen "normal" one step at a time and never be flagged (a unit test covers exactly this).
-- **Speed is accounted for.** Speeding up legitimately warms an engine, and an engine catching up after pulling away from a stop climbs too. Neither raises a forecast, because the forecast only trends heat beyond the vehicle's normal and needs the engine to be already measurably hotter than usual.
-- **Learning survives restarts.** Learned baselines are saved with each vehicle's state every 5 s and restored on start.
-- **System health check.** System health shows how many vehicles have a trained model.
-
-**Measured against ground truth.** A 20-minute run used 300 simulated vehicles with faults injected about 30 times more often than normal, and `--truth` logged every injected fault. Each early warning was then matched to a real fault on the same vehicle:
-
-| Detector | Precision (warnings that matched a real fault) | Recall (faults caught, after warm-up) | Fixed 105 °C rule on the same faults |
-| --- | --- | --- | --- |
-| Overheat forecast | 80% (12 of 15) | 9 of 11 overheats | Caught all 11, but the forecast warned a **median 78 s earlier** (66 to 82 s) |
-| Unusual engine temperature | 94% (15 of 16) | 3 of 5 coolant leaks | Caught 0 of 5: the leak never reaches 105 °C |
-| Unexplained fuel loss | 100% (24 of 24) | 9 of 12 thefts | No fixed rule can see this |
-
-The few unmatched warnings were on vehicles that had a real overheat a few minutes earlier, still settling after it. The samples are small and the faults are simulated, so treat these as evidence that the approach works, not as production accuracy.
-
-Getting here took three rounds, and the rounds are what made the models trustworthy:
-1. **First version:** overheat forecasts were only 32% precise. They fired whenever a vehicle braked to a stop, because the baseline used instantaneous speed while the engine cools over about a minute. The baseline now uses speed smoothed over the engine's thermal response.
-2. **Second version:** the forecast fell to 13%, because the baselines were trusted too early (the engine still settling after start-up, only one cruising speed seen). A model now judges only after about 2.5 minutes of settling, 3 minutes of learning, and driving at a range of speeds.
-3. Each fix came with a unit test that reproduces the false alarm.
-
-To reproduce, run the simulator with `--anomaly 30 --truth faults.jsonl` and compare the `incidents` collection with the file.
-
-## How this meets the brief
-
-| Requirement in `MERNIFY_ProblemStatement.md` | Where it's met |
+| | |
 | --- | --- |
-| Ingest continuous streams from multiple sources | Simulator: 300 vehicles by default, tested at 2,000, each a separate source → `POST /api/ingest` |
-| Process events and maintain system state | `server/src/pipeline/pipeline.js`: latest state per vehicle, rules, per-minute rollups |
-| Store telemetry for historical retrieval and analysis | MongoDB time-series `telemetry` collection, plus `rollups` that the Reports page reads |
-| Broadcast relevant updates in real time | Socket.IO `fleet:<id>` and `vehicle:<id>` rooms, field-level deltas every 250 ms |
-| Interactive visualisations, including charts, maps and heatmaps | Live map, uPlot charts, incident heatmap on Reports |
-| History alongside live data without duplicates or inconsistency | Vehicle panel: join the room, hold events, load history (including unflushed events), merge by `seq` |
-| Events identify source, event and time, and handle duplicates and out-of-order events | `vehicleId` + `seq` + `ts`; equal `seq` is dropped as a duplicate, lower `seq` as late |
-| Stay responsive under frequent updates | Store mutated per message, React re-renders at most 4 times a second, windowed vehicle list, canvas charts |
-| Socket.IO rooms or namespaces for subscriptions | Fleet chips in the top bar join and leave `fleet:<id>` rooms; opening a vehicle joins `vehicle:<id>`; System health lists every room and its screens |
-| Input validation and rate limiting | Strict Zod schema, per-IP limit, per-device token bucket, device API key |
-| Basic authentication and access control | JWT logins; dispatcher and fleet-manager roles checked on every room join and API call |
-| **Bonus:** batching, throttling, windowing on the client | 4 Hz UI tick, windowed list, coalesced fleet batches |
-| **Bonus:** independent subscriptions per client | Each screen picks its fleets; the server filters by account |
-| **Bonus:** historical analysis | Reports page |
-| **Bonus:** anomaly detection and alerts | Per-vehicle learned models raise early warnings before fixed limits are crossed (see [Early warnings](#early-warnings-machine-learning)). Six rules feed incidents that merge repeats, escalate, auto-close, and are worked with driver instructions, calls, notes and outcomes (see [Working an incident](#working-an-incident)) |
-| **Bonus:** backpressure and rate limiting | 503 + `Retry-After` when the write buffer fills; slow sockets get a fresh snapshot instead of a queue |
-| **Bonus:** performance measurements | `npm run stress`, results below and on the System health page |
-| **Bonus:** hosting | Not deployed yet. `npm run build && npm start` serves everything from one port, ready for Render or Railway with a MongoDB Atlas URI. |
+| ![Landing page](docs/screenshots/01-landing.jpg) **Landing page** with a live Three.js city | ![Instruction confirmed](docs/screenshots/04-incident-instruction.jpg) **Working an incident:** "Slow down" sent and confirmed by the driver |
+| ![Early warning](docs/screenshots/05-early-warning.jpg) **Early warning** with the model's evidence | ![Vehicle panel](docs/screenshots/06-vehicle.jpg) **Vehicle:** open incidents, last 15 minutes joined to live readings |
+| ![Reports](docs/screenshots/07-reports.jpg) **Reports:** response times and drivers to follow up | ![System health](docs/screenshots/08-system-health.jpg) **System health:** checks, throughput, connected screens |
+| ![Fleet manager](docs/screenshots/09-fleet-manager.jpg) **Fleet manager** (`north`) sees only North Depot | ![Mobile](docs/screenshots/10-mobile.jpg) **Phone layout** |
 
-## What it does
-
-- **Ingest at fleet scale.** Tested at 2,000 vehicles × 1 Hz, about 2,000 events per second, with 50 dashboards connected (see [Measured performance](#measured-performance)).
-- **Per-fleet subscriptions.** Each dashboard joins Socket.IO rooms for the fleets it picked and receives nothing else. Access is enforced on the server: a fleet manager can only join their own fleet's room.
-- **History merged with live data.** Opening a vehicle loads its last 5, 15 or 60 minutes from MongoDB and keeps it running from the live stream. The merge has no gaps and no duplicate points, and the seam between history and live data is drawn on both the chart and the map trail.
-- **Incident detection** on every event as it arrives:
-  - overspeed: above the zone limit for 10 s
-  - harsh braking: deceleration beyond 0.4 g
-  - long idle: engine on and stationary for 15 min
-  - left area: outside the fleet's operating area
-  - engine overheat: 105 °C or more for 30 s (clears below 100 °C)
-  - not reporting: a vehicle went silent while driving
-
-  Rules also report when a condition ends, so incidents know when they have stopped.
-- **Early warnings from machine learning:** each vehicle's own learned model forecasts overheating, spots an engine running hotter than that vehicle normally does, and flags fuel loss the distance doesn't explain.
-- **Driver instructions** go down to the vehicle with its next upload, and the driver's confirmation comes back the same way.
-- **Follow-ups:** coaching and maintenance checks booked from incidents, vehicles or reports, tracked until done.
-- **Protection against bad input:** schema validation, a per-IP rate limit, a per-device token bucket, a device API key, 503 backpressure when the write buffer fills, and JWT logins with fleet-scoped access.
-
-## Run it
-
-You need Node.js 20 or newer (tested on 24) and MongoDB 6 or newer (tested on 8), running locally or on Atlas.
-
-```sh
-npm install
-cp .env.example .env          # then edit MONGO_URI / JWT_SECRET if needed
-npm run db                    # start a local MongoDB with its data in .mongo-data/
-npm run dev                   # server :4000, dashboard :5173, simulator with 300 vehicles
-```
-
-`npm run db:stop` shuts that MongoDB down. On Linux kernels 6.19 and newer, the MongoDB 8.0 systemd service (`systemctl start mongod`) refuses to start ([SERVER-121912](https://jira.mongodb.org/browse/SERVER-121912)), but starting `mongod` directly as above works. If the dashboard shows "Request failed (502)", the server is not running, usually because MongoDB isn't.
-
-Open http://localhost:5173 for the landing page, then **Open dashboard**. On first start the server creates three demo accounts:
-
-| Username | Password | Sees |
-| --- | --- | --- |
-| `admin` | `admin123` | Dispatcher: all three fleets |
-| `north` | `north123` | Fleet manager: North Depot only |
-| `airport` | `airport123` | Fleet manager: Airport Shuttle only |
-
-To show the per-fleet access control, sign in as `admin` in one window and as `north` in another. Both receive live updates, but only for the fleets each is allowed to see.
-
-### Other commands
-
-| Command | What it does |
-| --- | --- |
-| `npm run dev:nosim` | Server and dashboard without the simulator |
-| `npm run simulate -- --vehicles 1000 --anomaly 5` | Simulator on its own (see `--help` for the duplicate, late and malformed rates) |
-| `npm run stress -- --vehicles 2000 --clients 50 --duration 60` | Load test. Writes `stress-results.json`, which System health displays. |
-| `npm test` | Unit tests for validation, dedupe, rate limiting, deltas, every rule, the incident workflow, and the early-warning models (including false-alarm checks) |
-| `npm run build && npm start` | Production: Express serves the landing page at `/`, the built dashboard at `/dashboard/`, and the API and Socket.IO on one port |
-
-For a quick demo of the long-idle rule, set `IDLE_ALERT_SEC=120` in `.env`.
-
-## How it works
+## Architecture
 
 ```mermaid
 flowchart LR
-  subgraph Devices
-    SIM["Simulator<br/>(Node, 300–2,000 vehicles)"]
+  subgraph Vehicles["Vehicles (simulated)"]
+    SIM["Simulator<br/>300 to 2,000 vehicles<br/>1 reading/s each"]
   end
-  subgraph Server["Node.js + Express"]
-    ING["POST /api/ingest<br/>API key · IP rate limit"]
-    PIPE["Pipeline<br/>validate · token bucket · dedupe by seq<br/>latest state · rules · rollups"]
+
+  subgraph Server["Node.js · Express · Socket.IO (one process)"]
+    direction TB
+    API["REST API<br/>ingest · devices · incidents<br/>vehicles · reports · auth"]
+    PIPE["Pipeline (in memory)<br/>validate · rate-limit · dedupe<br/>latest state · rules · rollups"]
+    ML["Early-warning models<br/>one per vehicle"]
+    INC["Incident manager<br/>merge · escalate · instructions"]
     WR["Writer<br/>every 1 s"]
-    BC["Broadcaster<br/>every 250 ms"]
+    RT["Broadcaster<br/>every 250 ms"]
+    API --> PIPE --> INC
+    PIPE --> ML --> INC
+    PIPE --> WR
+    INC --> WR
+    PIPE --> RT
+    INC --> RT
   end
-  DB[("MongoDB<br/>telemetry (time-series)<br/>vehicles · incidents · follow-ups · rollups · users")]
-  subgraph Clients["React dashboards"]
-    D1["Dashboard A<br/>fleet:north-depot"]
-    D2["Dashboard B<br/>all fleets + vehicle:KA01-AB-4471"]
+
+  DB[("MongoDB<br/>time-series telemetry<br/>vehicles · incidents · followups<br/>rollups · users")]
+
+  subgraph Screens["React dashboards"]
+    D1["Dispatcher<br/>all fleets"]
+    D2["Fleet manager<br/>one fleet"]
   end
-  SIM -- "JSON batches every 250 ms" --> ING --> PIPE
-  PIPE --> WR -- "insertMany / bulkWrite" --> DB
-  PIPE --> BC -- "Socket.IO rooms, deltas" --> D1 & D2
-  D2 -- "GET /api/vehicles/:id/history" --> DB
+
+  SIM -- "POST /api/ingest<br/>batches every 250 ms" --> API
+  API -- "response carries<br/>driver instructions" --> SIM
+  WR -- "insertMany · bulkWrite" --> DB
+  API -- "history · reports" --> DB
+  RT -- "Socket.IO rooms<br/>fleet:ID · vehicle:ID" --> D1 & D2
+  D1 & D2 -- "actions · history · reports" --> API
 ```
 
-### Data generation
+**How a reading flows**
 
-`simulator/index.js` drives each vehicle along a hand-drawn polyline on a real road: Outer Ring Road, Tumkur Road, Bellary Road to the airport, Hosur Road, Old Airport Road or Mysore Road. Their coordinates are approximate and live in `shared/geo.js`. Speed follows a cruise target capped below the local speed limit, and fuel and engine temperature drift realistically.
+```mermaid
+sequenceDiagram
+  autonumber
+  participant V as Vehicle
+  participant A as POST /api/ingest
+  participant P as Pipeline
+  participant I as Incidents
+  participant M as MongoDB
+  participant S as Dashboards
 
-Each vehicle reports at its own phase within the second, as unsynchronised devices would. Now and then a vehicle starts an episode:
-- speeding
-- a hard stop
-- overheating
-- idling
-- parking with the engine off
-- driving out of its fleet's geofence
-- losing signal for a minute or so (a dead zone)
-- a failing fan (engine climbs towards 112 °C over a couple of minutes), a slow coolant leak (+1 °C a minute), or fuel siphoned while parked. These exercise the early-warning models. `--truth file.jsonl` logs every injected fault so the models can be scored against it.
+  V->>A: batch of readings (device key)
+  A->>P: validate · rate-limit · dedupe by seq
+  P->>P: latest state · distance · minute rollup
+  P->>I: rule hits and clears · model warnings
+  A-->>V: accepted counts + queued driver instructions
+  Note over P,M: every 1 s
+  P->>M: insertMany telemetry · bulkWrite vehicles, incidents, rollups
+  Note over P,S: every 250 ms
+  P->>S: fleet:batch (changed fields only) · incidents
+```
 
-The network is unreliable on purpose: by default 1% of events are sent twice and 0.5% arrive out of order, so the dedupe logic is always being exercised.
+Everything that has to be fast happens in memory in one Node process: validation, dedupe, state, rules, models and incidents. The `Pipeline` class does no I/O itself, so it is unit-tested directly. Timers drain it to MongoDB every second and to the screens every 250 ms. More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
-A telemetry event:
+## Tech stack
+
+| Layer | Technology | Used for |
+| --- | --- | --- |
+| Database | **MongoDB** 7.0+ (tested on 8.0), Mongoose 9 | Time-series collection for raw telemetry (7-day TTL); vehicles, incidents, follow-ups, per-minute rollups, users |
+| Server | **Node.js** 24, **Express** 5 | Device gateway, REST API, static hosting of the landing page and dashboard |
+| Real-time | **Socket.IO** 4 | Rooms per fleet and per vehicle, 250 ms delta batches, incident updates, health metrics |
+| Dashboard | **React** 19, React Router 7, Vite 8 | Control room, reports, system health |
+| Maps and charts | MapLibre GL 6 (OpenFreeMap tiles), uPlot | Live map, incident heatmap, canvas charts |
+| Validation and security | Zod 4, express-rate-limit, helmet, jsonwebtoken, bcryptjs | Schema checks, rate limits, headers, auth |
+| Landing page | Three.js r128 | Scroll-driven 3D city |
+| Machine learning | Plain JavaScript, no external service | Online per-vehicle models (weighted least squares, trend fitting) |
+
+## Data generation and ingestion
+
+**The simulator** (`simulator/index.js`) drives each vehicle along a real Bengaluru road: Outer Ring Road, Tumkur Road, Bellary Road, Hosur Road, Old Airport Road or Mysore Road (approximate traces in `shared/geo.js`).
+- Speed follows a cruise target below the local limit.
+- Engine temperature follows load with a realistic lag, and fuel drains with distance.
+- Vehicles report at their own phase within each second, like unsynchronised devices.
+
+It also injects what real fleets throw at a control room:
+
+| Behaviour | Episodes |
+| --- | --- |
+| Driving | Speeding, hard stops, long idling, parking, leaving the operating area |
+| Faults | A failing fan (overheat), a slow coolant leak, fuel siphoned while parked, losing signal in a dead zone |
+| Network | 1% of readings sent twice, 0.5% delivered out of order, optional malformed readings (`--malformed`) |
+| Drivers | Read dispatcher instructions after 3 to 9 s, confirm, and comply; about 1 in 12 never answers |
+
+**A reading** identifies its source, its position in that source's stream, and when it was taken:
 
 ```json
 { "vehicleId": "KA01-AB-4471", "seq": 17945607879, "ts": 1794560807035, "type": "position",
   "lat": 12.97194, "lng": 77.59369, "speedKmh": 42.6, "fuelPct": 61, "engineC": 88, "heading": 74, "engineOn": true }
 ```
 
-`vehicleId` and `seq` identify the event: `seq` only ever increases for a device. `ts` is the device time, in epoch milliseconds or ISO-8601.
+**Ingestion** (`POST /api/ingest`, batches of up to 1,000 readings):
+1. **Gate.** Device API key, per-IP rate limit, 2 MB body limit. If the write buffer is full, the server answers **503 + `Retry-After`** and the vehicle keeps its data and retries.
+2. **Validate.** A strict Zod schema rejects unknown fields and impossible values. Timestamps more than 60 s in the future or over 24 h old are rejected, and so are unregistered vehicles.
+3. **Rate-limit each device** with a token bucket (5 readings/s, bursts of 20).
+4. **Dedupe by `seq`.** Equal to the last accepted is a duplicate; lower is late. Both are dropped and counted.
+5. **Process.** Update latest state and distance, run the rules and the vehicle's model, and add to the per-minute rollup.
+6. **Store and broadcast.** Every second, one unordered `insertMany` into a **MongoDB time-series collection**, plus `bulkWrite`s for incidents and rollups. Every 250 ms, deltas go to the screens.
 
-### Ingestion and processing (`server/src/pipeline/`)
-
-1. **Gate.** The device key is checked, then an IP rate limit is applied. A request carries up to 1,000 events.
-2. **Validation.** Each event is checked by a strict Zod schema. Timestamps more than 60 s in the future or older than 24 h are rejected, and so are unregistered vehicles.
-3. **Per-device token bucket:** 5 events/s on average, bursts of 20.
-4. **Dedupe.** An event whose `seq` equals the vehicle's last accepted `seq` is a duplicate; a lower `seq` is late. Both are dropped and counted. This keeps retries from a flaky link from double-counting.
-5. **Accepted events:**
-   - update the in-memory latest state
-   - run the rules
-   - add to the per-fleet, per-minute rollup
-   - join the write buffer and the broadcast queues
-
-   The pipeline does no I/O itself, which is why it can be unit-tested.
-6. **Writes.** Every second the writer drains the buffer:
-   - raw events into a **MongoDB time-series collection** (`telemetry`, 7-day TTL) with one unordered `insertMany`
-   - changed incidents with one `replaceOne` upsert each, in a single `bulkWrite`
-   - rollups with a `$max` upsert
-   - latest vehicle states every 5 s, since they are served from memory and the database copy is only needed after a restart
-
-   If the buffer passes `MAX_PENDING_WRITES`, ingest answers **503 with `Retry-After`** and the simulator backs off.
-
-### Real-time delivery (`server/src/realtime/socket.js`)
+## Real-time communication
 
 Dashboards connect with their JWT; the handshake is rejected without one.
 
+```mermaid
+flowchart LR
+  ADM["Dispatcher screen"] --> F1["fleet:north-depot"] & F2["fleet:airport-shuttle"] & F3["fleet:city-logistics"] & MR["metrics"]
+  NOR["North Depot manager"] --> F1
+  ADM -. "opens a vehicle" .-> VR["vehicle:KA01-AB-4471"]
+```
+
 | Room | Joined by | Receives |
 | --- | --- | --- |
-| `fleet:<id>` | `subscribe { fleets }`, filtered to the user's fleets. The ack carries a full snapshot. | `fleet:batch` every 250 ms |
-| `vehicle:<id>` | `watch { vehicleId }` while a vehicle is open | `vehicle:events`, every raw event |
-| `metrics` | dispatchers only | `metrics` with health checks, once a second |
+| `fleet:<id>` | `subscribe { fleets }`, filtered to what the account may see; the reply carries a full snapshot | `fleet:batch` every 250 ms; `incidents` when one changes |
+| `vehicle:<id>` | `watch` while a vehicle is open | `vehicle:events`, every raw reading of that vehicle |
+| `metrics` | dispatchers only | health, throughput and connected screens, once a second |
 
-Incidents that changed are sent to their fleet room as an `incidents` message on the same 250 ms tick.
+**Selective, compact broadcasting** instead of re-sending application state:
+- **Coalescing.** At most one entry per vehicle per 250 ms, however many readings arrived.
+- **Field-level deltas.** Only the fields that moved, with short keys: `["KA01-AB-4471", 17945607880, 1794560808035, {"sp": 45}]`.
+- **Per-vehicle streams** only for vehicles someone has open.
+- **Slow clients** are taken out of their rooms and later given one fresh snapshot, never a growing queue.
 
-To keep payloads small:
-- **Coalescing.** A fleet batch carries at most one entry per vehicle per 250 ms, however many events arrived in that window.
-- **Field-level deltas.** After the first send, an entry holds only the fields that moved past a threshold. For example, a vehicle whose speed alone changed is sent as `["KA01-AB-4471", 17945607880, 1794560808035, {"sp": 45}]`.
-- **Compact keys.** Fields use short keys and rounded values.
-- **Watched vehicles only.** Per-event streams go only to vehicles somebody has open.
+**On the client**, socket messages update a plain store and React re-renders at most **4 times a second**. The vehicle list is windowed, the charts draw to canvas, and the map refreshes one data source per tick. A fleet manager's screen receives only its own fleet; System health lists every room and how many screens are in it.
 
-**Slow clients.** A socket whose outgoing buffer backs up leaves its fleet rooms. When the buffer drains, it gets one fresh snapshot and rejoins. A slow client receives the latest state, not a growing queue of stale batches.
+## History and live data without duplicates
 
-**Client side** (`client/src/lib/live.js`):
-- Socket messages mutate a plain store, and React re-renders at most **4 times a second**, so hundreds of updates cost one render.
-- The vehicle list is **windowed**: only visible rows render.
-- Charts use **uPlot** (canvas).
-- The map updates one GeoJSON source per tick.
+```mermaid
+sequenceDiagram
+  participant UI as Vehicle panel
+  participant WS as Socket.IO
+  participant API as GET /history
+  participant DB as MongoDB + write buffer
+  UI->>WS: watch vehicle (live readings start arriving and are held)
+  UI->>API: last 15 minutes
+  API->>DB: stored readings + readings not yet written
+  API-->>UI: merged, deduped by seq
+  UI->>UI: merge held live readings by seq, draw history · seam · live
+```
 
-### History plus live without gaps or duplicates
+Joining the vehicle's room *before* loading history closes the gap on one side, because readings that arrive during the load are held. Including readings still in the server's write buffer closes the other side. Merging both by `seq` removes the overlap. The chart and map trail show where history ends and live data begins.
 
-Opening a vehicle (`client/src/components/VehicleDetail.jsx`) runs these steps:
-1. Join `vehicle:<id>` and **hold** incoming events.
-2. Fetch history. The server reads MongoDB **and adds events still in its write buffer**, deduped by `seq`. Otherwise an event accepted in the last second would be in neither list.
-3. Merge history and the held events into one map keyed by `seq`, so any overlap is dropped and counted.
-4. Treat the last history `seq` as the seam. The chart draws history in beige, an orange seam marker, and live data in near-black. The map trail uses the same colours.
+## Incidents and driver instructions
 
-The panel footer shows the merge, for example "191 from history + 5 live · 1 overlapping dropped".
+```mermaid
+stateDiagram-v2
+  [*] --> Active: rule or model fires
+  Active --> Active: fires again (count up, critical after 3)
+  Active --> Cleared: condition ends
+  Cleared --> Active: fires again
+  Active --> Resolved: dispatcher, with outcome
+  Cleared --> Resolved: dispatcher, with outcome
+  Cleared --> Resolved: auto after 10 min (non-critical, nobody took it)
+```
 
-### Data model
+- **One incident per vehicle and problem**, so repeats don't flood the queue.
+- **Driver instructions** (*Slow down*, *Return to route*, *Pull over and switch off*, *Resume trip*, *Call control room*) are queued, then delivered in the response to the vehicle's next upload. The driver confirms through `POST /api/devices/ack`.
+  - Undelivered after 2 minutes: the instruction expires.
+  - Delivered but unanswered after 60 s: the timeline says to call the driver.
+- **Every step** (opened, repeated, escalated, instruction sent, delivered, confirmed, call, note, resolved) is in the incident's timeline with who did it.
 
-| Collection | Contents |
-| --- | --- |
-| `telemetry` (time-series, `timeField: ts`, `metaField: meta`) | `{ ts, meta: { vehicleId, fleetId }, seq, lat, lng, speedKmh, fuelPct, engineC, heading, engineOn }` |
-| `vehicles` | Registry and latest state. `_id` is the vehicle id, and `seq` is restored on boot so dedupe survives restarts. |
-| `incidents` | `{ vehicleId, fleetId, driver, rule, severity, status: active \| cleared \| resolved, ts, lastSeenAt, clearedAt, resolvedAt, count, message, value, readings, owner, outcome, note, commands[], timeline[] }` |
-| `followups` | `{ vehicleId, fleetId, driver, kind: coaching \| maintenance, reason, incidentId, due, status: open \| done, createdBy, doneBy, doneAt }` |
-| `rollups` | `{ fleetId, bucket (minute), events, km, speedSum, speedMax, vehicles }`. Reports read these, never raw telemetry. |
-| `users` | `{ username, passwordHash (bcrypt), role: admin \| dispatcher, fleets }` |
+## Early warnings (machine learning)
 
-## Measured performance
+Fixed limits only fire once something is already wrong, and they can't tell a hot-running truck from a failing one. So each vehicle has its own small model on the server (`server/src/pipeline/ml.js`) that learns what is normal *for that vehicle*:
 
-Both runs used one laptop running MongoDB, the server, the simulator and all 50 dashboard sockets at once, so the client-side numbers include that contention. Each run measured for 60 s after a 12 s warm-up; reproduce with `npm run stress`.
-
-| Measure | Simulator batches every 250 ms | Simulator batches every 100 ms |
+| Detector | What it learns | What it catches |
 | --- | --- | --- |
-| Simulated vehicles at 1 Hz | 2,000 | 2,000 |
-| Dashboards connected | 50 of 50 | 50 of 50 |
-| Events received / accepted per second | 2,021 / 1,992 | 2,021 / 1,992 |
-| Written to MongoDB in 60 s | 119,505, no write errors | 119,522, no write errors |
-| Device event to dashboard, p50 / p95 / p99 | 311 / 430 / 450 ms | 211 / 349 / 378 ms |
-| Batches per dashboard per second | 12 (3 fleets × 4) | 12 |
-| Payload per dashboard (all 3 fleets) | 149 KB/s | 149 KB/s |
-| Server event-loop delay p99, peak | 30 ms | 96 ms |
-| Server memory, peak RSS | 381 MB | 389 MB |
+| **Overheat forecast** | Engine temperature vs load (speed smoothed over the engine's ~50 s lag), then the trend of the heat load doesn't explain | An engine heading for 105 °C, before the fixed rule can fire |
+| **Unusual engine temperature** | The same baseline and the vehicle's own spread around it | A slow coolant leak that never reaches 105 °C |
+| **Unexplained fuel loss** | The vehicle's own fuel use per km | Fuel the distance driven doesn't explain: siphoning, leaks |
 
-Latency is bounded by the two batching windows: the simulator's send interval plus the server's 250 ms broadcast window. Lowering `BROADCAST_MS` trades more, smaller messages for lower latency.
+Warnings become ordinary incidents labelled *Early warning*, with the evidence shown ("it normally uses 2.13% of its tank per km").
 
-The accepted count sits about 1.5% below received because of the injected duplicates and out-of-order events, which the server dropped as designed.
+**Safeguards.**
+- **No judging too early.** It skips the first 2.5 minutes, learns for 3 more, and needs varied speeds before judging the engine.
+- **No learning from anomalies.** Readings beyond 2σ are never learned from, so drift can't become normal.
+- **Persistence.** Learned baselines survive restarts.
 
-## Project layout
+**Evaluated against ground truth.** A 20-minute run used 300 vehicles with faults injected 30× more often than normal; the simulator's `--truth` log recorded every fault.
+
+| Detector | Precision | Recall | Compared with the fixed rule |
+| --- | --- | --- | --- |
+| Overheat forecast | 80% (12/15) | 9/11 | median **78 s earlier** (66 to 82 s) |
+| Unusual engine temperature | 94% (15/16) | 3/5 | the fixed rule caught 0/5 coolant leaks |
+| Unexplained fuel loss | 100% (24/24) | 9/12 | no fixed rule can see this |
+
+Two earlier versions scored 32% and 13% precision on the forecast, because of engine lag at stops and baselines trusted too early. Each cause now has a unit test reproducing the false alarm. The samples are small and the faults are simulated, so read these as evidence the approach works, not as production accuracy.
+
+
+## Getting started
+
+**Requirements:** Node.js 20+ (tested on 24) and MongoDB 7.0+ (tested on 8.0; reports use `$percentile`), local or Atlas.
+
+```sh
+git clone https://github.com/gouravanirudh05/VehicleFleetMonitoring.git
+cd VehicleFleetMonitoring
+npm install
+cp .env.example .env     # set MONGO_URI and secrets if needed
+npm run db               # local MongoDB with data in .mongo-data/ (or point MONGO_URI at Atlas)
+npm run dev              # server :4000 · dashboard :5173 · simulator with 300 vehicles
+```
+
+Open **http://localhost:5173**, then **Open the control room**. Demo accounts are created on first start:
+
+| Username | Password | Role |
+| --- | --- | --- |
+| `admin` | `admin123` | Dispatcher: all three fleets and System health |
+| `north` | `north123` | Fleet manager: North Depot |
+| `airport` | `airport123` | Fleet manager: Airport Shuttle |
+
+| Command | What it does |
+| --- | --- |
+| `npm run dev:nosim` | Server and dashboard without the simulator |
+| `npm run simulate -- --vehicles 1000 --anomaly 10` | Simulator alone; `--anomaly` makes faults more frequent, `--help` lists every option |
+| `npm run build && npm start` | Production: one port serves the landing page (`/`), dashboard (`/dashboard/`), API and Socket.IO |
+| `npm run db:stop` | Stop the local MongoDB |
+
+<details>
+<summary>Configuration (<code>.env</code>)</summary>
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `PORT` | 4000 | HTTP port |
+| `MONGO_URI` | `mongodb://127.0.0.1:27017/fleetwake` | Database |
+| `JWT_SECRET` | dev value | Login token secret (32+ characters required in production) |
+| `DEVICE_API_KEY` | `dev-device-key` | Shared key vehicles send (must be changed in production) |
+| `BROADCAST_MS` / `FLUSH_MS` | 250 / 1000 | Broadcast and database flush windows |
+| `DEVICE_RATE_PER_SEC` / `DEVICE_BURST` | 5 / 20 | Per-device rate limit |
+| `MAX_PENDING_WRITES` | 100000 | Backpressure threshold |
+| `IDLE_ALERT_SEC` | 900 | Long-idle threshold (lower it for a demo) |
+| `SIMULATE_VEHICLES` | empty | Run the simulator inside the server (one-service hosting) |
+
+</details>
+
+**Troubleshooting.**
+- **"Request failed (502)"** in the dashboard means the server isn't running, usually because MongoDB isn't.
+- **Linux kernel 6.19 and newer:** the MongoDB 8.0 systemd service refuses to start there ([SERVER-121912](https://jira.mongodb.org/browse/SERVER-121912)). `npm run db` starts `mongod` directly, which works.
+
+## Testing
+
+| What | Command | Covers |
+| --- | --- | --- |
+| Unit tests (35) | `npm test` | Validation, dedupe, rate limiting, deltas, offline detection, distance rollups, every rule (start *and* clear), the incident workflow (merge, escalate, instruction round trip, expiry, auto-close, ownership), and the early-warning models, including false-alarm cases: an hour of normal driving, stop-and-go with engine lag, a cold start, a thirsty bike |
+| Single test | `node --test --test-name-pattern="overspeed" "server/test/**/*.test.js"` | |
+| Load test | `npm run stress -- --vehicles 2000 --clients 50` | Throughput, latency and connected screens; writes `stress-results.json` |
+| ML evaluation | `npm run simulate -- --anomaly 30 --truth faults.jsonl` | Logs every injected fault so warnings can be scored against ground truth |
+
+
+
+
+## Requirements checklist
+
+
+| Requirement | How Fleetwake meets it |
+| --- | --- |
+| Ingest continuous streams from multiple sources | 300 vehicles by default (tested at 2,000), each an independent source posting batches to `/api/ingest` |
+| Process events and maintain system state | In-memory latest state per vehicle, rules, models, incidents and per-minute rollups |
+| Store telemetry for historical retrieval and analysis | MongoDB time-series `telemetry` collection; `rollups` for reports |
+| Broadcast relevant updates in real time | Socket.IO `fleet:` and `vehicle:` rooms, field-level deltas every 250 ms |
+| Interactive visualisations: charts, maps, heatmaps | Live map, uPlot charts, incident heatmap |
+| History alongside live without duplicates or inconsistency | Join the room, hold, load history (including unwritten readings), merge by `seq` |
+| Responsive under frequent updates | 4 Hz render tick, windowed list, canvas charts; 238 ms median end to end at 2,000 vehicles |
+| Events carry source, event id and timestamp; handle duplicates and ordering | `vehicleId` + `seq` + `ts`; duplicates and late readings dropped and counted |
+| Socket.IO rooms or namespaces for subscriptions | Per-fleet and per-vehicle rooms, chosen per screen and filtered by account |
+| Input validation and rate limiting | Strict Zod schema, timestamp checks, per-IP limit, per-device token bucket, device key |
+| Basic authentication and access control | JWT + bcrypt; fleet scope checked on every API call, room join and incident action |
+| **Bonus:** efficient payloads, selective broadcasting | Coalesced field-level deltas, short keys, per-vehicle streams only when open |
+| **Bonus:** client batching, throttling, windowing | Store plus 4 Hz tick, windowed list |
+| **Bonus:** independent subscriptions or filtering per client | Fleet chips per screen; account-scoped rooms |
+| **Bonus:** historical analysis | Reports: response times, outcomes, incidents per 100 km, heatmap, fleets compared |
+| **Bonus:** anomaly detection and alerts | Six rules plus three learned early warnings, worked as incidents with driver instructions |
+| **Bonus:** backpressure, rate limiting | 503 + `Retry-After`; slow-socket resync; token buckets |
+| **Bonus:** performance measurements | Load test (2,000 vehicles, 50 clients) and ML evaluation against ground truth |
+| **Bonus:** hosting | Render blueprint, Dockerfile and docker-compose; one-service demo with `SIMULATE_VEHICLES` |
+| Deliverable: README sections | Overview, setup, features, tech stack, data generation, real-time mechanism, testing, credits: this file |
+| Deliverable: design document (bonus) | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): system and data-flow diagrams, data model (ER diagram), real-time protocol, performance techniques, API reference |
+
+## Project structure
 
 ```
-landing/       Single-file Three.js landing page, served at /
-client/        React dashboard (Vite), served at /dashboard/
-server/        Express API, Socket.IO, pipeline, MongoDB models, unit tests
-simulator/     Fleet simulator and stress test
-shared/geo.js  Fleets, geofences, speed zones and routes used by server and simulator
+├── landing/             Static Three.js landing page, served at /
+├── client/              React dashboard (Vite), served at /dashboard/
+│   └── src/
+│       ├── pages/       Control room (Live), Reports, System health, Login
+│       ├── components/  Map, incident queue and panel, vehicle panel, charts
+│       └── lib/         Live store (Socket.IO), API client, map style
+├── server/
+│   ├── src/
+│   │   ├── pipeline/    Ingest pipeline, rules, early-warning models, incidents, writer, health
+│   │   ├── realtime/    Socket.IO rooms and broadcast loop
+│   │   ├── routes/      REST API
+│   │   └── models/      Mongoose schemas
+│   └── test/            Unit tests (node:test)
+├── simulator/           Fleet simulator and load test
+├── shared/              Fleets, roads, zones, drivers, instructions (server, simulator and dashboard)
+├── docs/                Architecture document and screenshots
+├── Dockerfile · docker-compose.yml · render.yaml
+└── MERNIFY_ProblemStatement.md
 ```
 
-## Credits
-
-- [Socket.IO](https://socket.io), [Express](https://expressjs.com), [Mongoose](https://mongoosejs.com), [React](https://react.dev), [React Router](https://reactrouter.com), [Vite](https://vite.dev): MIT.
-- [Zod](https://zod.dev) (MIT), [express-rate-limit](https://github.com/express-rate-limit/express-rate-limit) (MIT), [helmet](https://helmetjs.github.io) (MIT), [jsonwebtoken](https://github.com/auth0/node-jsonwebtoken) (MIT), [bcryptjs](https://github.com/dcodeIO/bcrypt.js) (BSD-3).
-- [MapLibre GL JS](https://maplibre.org): BSD-3. Map data © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors (ODbL), served by [OpenFreeMap](https://openfreemap.org). The navy map style is our own.
-- [uPlot](https://github.com/leeoniya/uPlot): MIT.
-- [Three.js](https://threejs.org) r128 (MIT) for the landing page. The scroll-driven storytelling was inspired by [Kage](https://github.com/MengTo/kage) by Meng To, and the saloon's look draws on the [VEYRA interactive car](https://github.com/amirmushichge/veyra-interactive-car) design study by Amir Mušić. No code, artwork or media is reused from either. The content structure takes cues from motorq.com.
-- Fonts: Big Shoulders Display, Instrument Sans and IBM Plex Mono, from Google Fonts (SIL Open Font License).
-- Route coordinates are approximate, hand-drawn traces of public roads.

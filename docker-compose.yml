@@ -1,0 +1,21 @@
+# Local production-like stack: MongoDB plus the Fleetwake image with a built-in simulated fleet.
+#   docker compose up --build      then open http://localhost:4000
+services:
+  mongo:
+    image: mongo:7.0
+    volumes:
+      - mongo-data:/data/db
+  app:
+    build: .
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: production
+      MONGO_URI: mongodb://mongo:27017/fleetwake
+      JWT_SECRET: ${JWT_SECRET:-replace-this-with-a-long-random-secret-0123456789}
+      DEVICE_API_KEY: ${DEVICE_API_KEY:-replace-this-device-key}
+      SIMULATE_VEHICLES: ${SIMULATE_VEHICLES:-300}
+    depends_on:
+      - mongo
+volumes:
+  mongo-data:

@@ -223,7 +223,7 @@ export default function VehicleDetail({ id, onClose, onTrail, onIncident }) {
         info.model.trained ? (
           <ul className="model-facts">
             <li><span>Engine at this speed</span><b>{info.model.normalEngineC} °C <span className="dim">±{info.model.engineSpreadC}</span></b></li>
-            <li><span>Fuel use</span><b>{info.model.fuelPerKm != null ? `${info.model.fuelPerKm}% per km` : 'still learning'}</b></li>
+            <li><span>Fuel use</span><b>{info.model.fuelPerKm != null ? `${info.model.fuelPerKm.toFixed(2)}% per km` : 'still learning'}</b></li>
             <li><span>Now</span><b>{v?.en != null && info.model.normalEngineC != null ? `${v.en - info.model.normalEngineC >= 0 ? '+' : ''}${(v.en - info.model.normalEngineC).toFixed(1)} °C vs normal` : '–'}</b></li>
           </ul>
         ) : <p className="dim small">{info.model.needsVariedDriving

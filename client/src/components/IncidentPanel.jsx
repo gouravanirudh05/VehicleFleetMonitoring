@@ -82,8 +82,8 @@ export default function IncidentPanel({ id, onClose, onVehicle }) {
       {early && (
         <p className="why">
           <b>Early warning.</b> Raised by this vehicle's own learned model, not a fixed limit.
-          {model?.normalEngineC != null && <> Its engine normally runs at {model.normalEngineC} °C at its current speed (±{model.engineSpreadC} °C).</>}
-          {inc.rule === 'fuelDrop' && model?.fuelPerKm != null && <> It normally uses {model.fuelPerKm}% of its tank per km.</>}
+          {inc.rule !== 'fuelDrop' && model?.normalEngineC != null && <> Its engine normally runs at {model.normalEngineC} °C at its current speed (±{model.engineSpreadC} °C).</>}
+          {inc.rule === 'fuelDrop' && model?.fuelPerKm != null && <> It normally uses {model.fuelPerKm.toFixed(2)}% of its tank per km.</>}
         </p>
       )}
       <dl className="facts">

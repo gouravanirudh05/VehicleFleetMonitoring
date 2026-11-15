@@ -1,0 +1,24 @@
+# Render blueprint: one always-on Node web service (WebSockets supported) plus MongoDB Atlas.
+# New > Blueprint > pick this repo, then paste your Atlas connection string into MONGO_URI.
+services:
+  - type: web
+    name: fleetwake
+    runtime: node
+    plan: free
+    # NODE_ENV=production makes npm skip devDependencies, and the dashboard build needs Vite.
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: node server/src/index.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: NODE_ENV
+        value: production
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DEVICE_API_KEY
+        generateValue: true
+      - key: SIMULATE_VEHICLES
+        value: "150"
