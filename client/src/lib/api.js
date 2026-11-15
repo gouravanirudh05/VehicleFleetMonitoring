@@ -1,5 +1,12 @@
 const KEY = 'fleetwake.session';
 
+/**
+ * Where the backend lives. Empty means same origin (local dev through the Vite proxy, or the
+ * single-process production server). When the dashboard is hosted separately (Vercel) and the
+ * backend elsewhere (Render), set VITE_API_URL at build time, e.g. https://fleetwake.onrender.com
+ */
+export const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+
 export function loadSession() {
   try {
     const s = JSON.parse(localStorage.getItem(KEY) || 'null');
@@ -30,7 +37,7 @@ export const setUnauthorizedHandler = (fn) => { onUnauthorized = fn; };
 
 export async function api(path, { method = 'GET', body, token } = {}) {
   const t = token ?? loadSession()?.token;
-  const res = await fetch(`/api${path}`, {
+  const res = await fetch(`${API_BASE}/api${path}`, {
     method,
     headers: {
       ...(body ? { 'content-type': 'application/json' } : {}),

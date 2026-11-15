@@ -1,12 +1,13 @@
-# Render blueprint: one always-on Node web service (WebSockets supported) plus MongoDB Atlas.
-# New > Blueprint > pick this repo, then paste your Atlas connection string into MONGO_URI.
+# Render blueprint: the BACKEND only (API, Socket.IO, ingest pipeline, built-in simulator), as one
+# always-on Node web service. The landing page and dashboard are static and live on Vercel.
+# New > Blueprint > pick this repo, then fill in the two values marked sync: false.
 services:
   - type: web
     name: fleetwake
     runtime: node
     plan: free
-    # NODE_ENV=production makes npm skip devDependencies, and the dashboard build needs Vite.
-    buildCommand: npm ci --include=dev && npm run build
+    # No dashboard build here: Vercel builds and serves it.
+    buildCommand: npm ci
     startCommand: node server/src/index.js
     healthCheckPath: /api/health
     envVars:
@@ -14,7 +15,12 @@ services:
         value: "24"
       - key: NODE_ENV
         value: production
+      # Your MongoDB Atlas connection string.
       - key: MONGO_URI
+        sync: false
+      # The Vercel site(s) allowed to call the API and open the socket, exact origin, comma-separated,
+      # no trailing slash. e.g. https://vehiclefleetmonitoring-mernify.vercel.app
+      - key: CORS_ORIGINS
         sync: false
       - key: JWT_SECRET
         generateValue: true

@@ -13,6 +13,7 @@
     "dev": "concurrently -k -n server,client,sim -c \"#FF6B5B,#F4EDE0,#8FA3D6\" \"npm run dev -w server\" \"npm run dev -w client\" \"npm run start -w simulator\"",
     "dev:nosim": "concurrently -k -n server,client -c \"#FF6B5B,#F4EDE0\" \"npm run dev -w server\" \"npm run dev -w client\"",
     "build": "npm run build -w client",
+    "build:vercel": "node scripts/build-vercel.mjs",
     "start": "npm run start -w server",
     "simulate": "npm run start -w simulator --",
     "stress": "npm run stress -w simulator --",

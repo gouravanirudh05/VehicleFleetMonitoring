@@ -353,6 +353,16 @@ Open **http://localhost:5173**, then **Open the control room**. Demo accounts ar
 
 
 
+## Deployment
+
+The server is one long-running Node process (in-memory pipeline, timers, WebSockets), so it cannot run on serverless hosting. The front end is static, so the two are hosted separately:
+
+| Part | Host | Setup |
+| --- | --- | --- |
+| Landing page and dashboard | **Vercel** (static) | Root directory = repo root, framework "Other". `vercel.json` runs `npm run build:vercel`. Set **`VITE_API_URL`** to the Render URL (for example `https://fleetwake.onrender.com`) and redeploy. |
+| API, Socket.IO, simulator | **Render** (always-on web service) | New > Blueprint (`render.yaml`). Set **`MONGO_URI`** (MongoDB Atlas) and **`CORS_ORIGINS`** (the Vercel origin, no trailing slash). |
+
+Atlas must allow connections from Render (Network Access `0.0.0.0/0`). A single-process alternative that serves everything from one origin is the `Dockerfile` or `npm run build && npm start`.
 
 ## Requirements checklist
 

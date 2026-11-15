@@ -151,3 +151,6 @@ vite.config.ts.timestamp-*
 # Local MongoDB data used for development
 .mongo-data/
 stress-results.json
+
+# Static site assembled for Vercel (scripts/build-vercel.mjs)
+vercel-out/
