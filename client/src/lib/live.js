@@ -1,5 +1,6 @@
 import { io } from 'socket.io-client';
 import { useSyncExternalStore } from 'react';
+import { API_BASE } from './api.js';
 
 const UI_HZ = 4;              // the UI redraws at most 4 times a second
 const KEEP_RESOLVED_MS = 2 * 3600_000;
@@ -31,7 +32,7 @@ class LiveStore {
   connect(token) {
     if (this.socket) return;
     this.status = 'connecting';
-    const s = io({ auth: { token }, transports: ['websocket', 'polling'] });
+    const s = io(API_BASE || undefined, { auth: { token }, transports: ['websocket', 'polling'] });
     this.socket = s;
     s.on('connect', () => {
       this.status = 'live';
